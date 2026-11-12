@@ -483,7 +483,11 @@ mod tests {
         let mut x: u32 = 99;
         for (i, o) in g.iter_mut().enumerate() {
             let t = i as f64 / sr;
-            let note = if (i / beat) % 2 == 0 { 98.0 } else { 123.0 };
+            let note = if (i / beat).is_multiple_of(2) {
+                98.0
+            } else {
+                123.0
+            };
             let tb = (i % beat) as f64 / sr;
             let bass = 0.3 * (-tb * 4.0).exp() * (2.0 * std::f64::consts::PI * note * t).sin();
             x ^= x << 13;
