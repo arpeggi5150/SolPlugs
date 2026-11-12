@@ -263,7 +263,7 @@ pub fn show(
                         .suffix(" dB/oct"),
                 )
                 .on_hover_text(
-                    "Tilts tonal-balance curves so a typical mix reads flat. Display only.",
+                    "Tilts tonal-balance curves around 1 kHz. At 0, pink noise reads flat. Display only.",
                 )
                 .changed()
             {

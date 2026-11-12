@@ -171,8 +171,13 @@ fn status_bar(ui: &mut Ui, s: &AppState, pal: &Palette, cmds: &mut Vec<Command>)
         } else {
             ui.label(
                 RichText::new(format!(
-                    "Mix measured: {}",
-                    widgets::duration(s.mix_seconds)
+                    "Mix measured: {}{}",
+                    widgets::duration(s.mix_seconds),
+                    if s.readings.idle {
+                        "  (paused: silence)"
+                    } else {
+                        ""
+                    }
                 ))
                 .color(pal.text_dim),
             );

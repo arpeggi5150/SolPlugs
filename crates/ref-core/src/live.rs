@@ -31,6 +31,8 @@ pub struct LiveReadings {
     pub width: Option<f64>,
     /// Spectrum of the last few seconds, dB relative to its own total (same reference as tonal balance).
     pub spectrum_db: Vec<f64>,
+    /// The input has been digital silence for a while (transport stopped); measuring is paused.
+    pub idle: bool,
 }
 
 /// The analyzer.
@@ -54,7 +56,13 @@ pub struct LiveAnalyzer {
     history_r: Vec<f32>,
     history_pos: usize,
     history_full: bool,
+    silent_run: u64,
 }
+
+/// Peak below this (-100 dBFS) counts as silence.
+const SILENCE: f32 = 1e-5;
+/// Silence longer than this pauses measuring, so a stopped transport isn't averaged in.
+const IDLE_AFTER_SECS: f64 = 0.4;
 
 impl LiveAnalyzer {
     /// An analyzer for a stream at `sample_rate`.
@@ -88,6 +96,7 @@ impl LiveAnalyzer {
             history_r: vec![0.0; hist],
             history_pos: 0,
             history_full: false,
+            silent_run: 0,
         }
     }
 
@@ -120,12 +129,22 @@ impl LiveAnalyzer {
         self.history_r.fill(0.0);
         self.history_pos = 0;
         self.history_full = false;
+        self.silent_run = 0;
     }
 
     /// Feeds stereo audio.
     pub fn process(&mut self, left: &[f32], right: &[f32]) {
         let n = left.len().min(right.len());
         let (left, right) = (&left[..n], &right[..n]);
+        let silent = left.iter().chain(right).all(|x| x.abs() < SILENCE);
+        if silent {
+            self.silent_run += n as u64;
+            if self.is_idle() {
+                return;
+            }
+        } else {
+            self.silent_run = 0;
+        }
         self.loud.process(left, Some(right));
         self.peak.process(left, Some(right));
         self.stereo_total.process(left, right);
@@ -159,6 +178,12 @@ impl LiveAnalyzer {
         }
     }
 
+    /// Whether measuring is paused on silence.
+    #[must_use]
+    pub fn is_idle(&self) -> bool {
+        self.silent_run as f64 > self.sample_rate * IDLE_AFTER_SECS
+    }
+
     /// Meter readings.
     #[must_use]
     pub fn readings(&self) -> LiveReadings {
@@ -182,6 +207,7 @@ impl LiveAnalyzer {
                     }
                 })
                 .collect(),
+            idle: self.is_idle(),
         }
     }
 
@@ -258,6 +284,30 @@ impl LiveAnalyzer {
 mod tests {
     use super::*;
     use crate::profile::analyze;
+
+    #[test]
+    fn long_silence_pauses_measuring_and_audio_resumes_it() {
+        let sr = 48_000.0;
+        let tone: Vec<f32> = (0..4800).map(|i| (i as f32 * 0.05).sin() * 0.5).collect();
+        let quiet = vec![0.0f32; 4800];
+        let mut a = LiveAnalyzer::new(sr);
+        for _ in 0..10 {
+            a.process(&tone, &tone);
+        }
+        let after_tone = a.seconds();
+        // 2 s of silence: only the first ~0.4 s is counted.
+        for _ in 0..20 {
+            a.process(&quiet, &quiet);
+        }
+        assert!(a.readings().idle);
+        assert!(
+            a.seconds() - after_tone < 0.5,
+            "{}",
+            a.seconds() - after_tone
+        );
+        a.process(&tone, &tone);
+        assert!(!a.readings().idle);
+    }
 
     #[test]
     fn live_profile_matches_offline_analysis() {
