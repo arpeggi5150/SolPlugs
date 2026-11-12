@@ -58,8 +58,9 @@ pub struct Settings {
     pub display_tilt_db_per_oct: f64,
 }
 
+/// Bands hold power per 1/6 octave, so pink noise reads flat with no tilt.
 fn default_tilt() -> f64 {
-    3.0
+    0.0
 }
 
 impl Default for Settings {

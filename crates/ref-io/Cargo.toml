@@ -19,7 +19,7 @@ thiserror.workspace = true
 log.workspace = true
 hound = "3.5"
 claxon = "0.4"
-puremp3 = "0.1"
+nanomp3 = "0.2"
 ureq = { version = "3.5", default-features = false, features = ["native-tls", "json"], optional = true }
 
 [lints]

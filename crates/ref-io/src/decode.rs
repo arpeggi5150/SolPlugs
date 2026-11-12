@@ -1,6 +1,6 @@
 //! Decodes WAV, FLAC and MP3 into stereo `f32`, from a file or from memory.
 
-use std::io::{Cursor, Read};
+use std::io::Cursor;
 use std::path::Path;
 
 /// Longest audio we decode (minutes); anything longer is refused rather than filling memory.
@@ -91,11 +91,16 @@ pub fn decode_file(path: &Path) -> Result<Audio, DecodeError> {
 
 /// Decodes audio held in memory.
 pub fn decode_bytes(bytes: &[u8]) -> Result<Audio, DecodeError> {
-    let audio = match sniff(bytes).ok_or(DecodeError::Unsupported)? {
-        Format::Wav => decode_wav(bytes)?,
-        Format::Flac => decode_flac(bytes)?,
-        Format::Mp3 => decode_mp3(bytes)?,
-    };
+    let format = sniff(bytes).ok_or(DecodeError::Unsupported)?;
+    // Decoders are third-party code fed untrusted bytes. A panic in one must become an
+    // error here, never unwind into a host's audio app.
+    let decoded = std::panic::catch_unwind(|| match format {
+        Format::Wav => decode_wav(bytes),
+        Format::Flac => decode_flac(bytes),
+        Format::Mp3 => decode_mp3(bytes),
+    });
+    let audio =
+        decoded.map_err(|_| DecodeError::Corrupt("the decoder failed on this file".into()))??;
     if audio.left.is_empty() || audio.sample_rate.is_nan() || audio.sample_rate < 8000.0 {
         return Err(DecodeError::Empty);
     }
@@ -170,14 +175,17 @@ fn decode_flac(bytes: &[u8]) -> Result<Audio, DecodeError> {
 }
 
 fn decode_mp3(bytes: &[u8]) -> Result<Audio, DecodeError> {
-    let (header, samples) =
-        puremp3::read_mp3(Cursor::new(bytes).take(bytes.len() as u64)).map_err(corrupt)?;
+    let d = nanomp3::decode_all::<f32>(bytes);
+    let ch = match d.channels {
+        Some(c) => usize::from(c.num()),
+        None => return Err(DecodeError::Empty),
+    };
     let mut a = Audio {
-        sample_rate: f64::from(header.sample_rate.hz()),
+        sample_rate: f64::from(d.sample_rate),
         ..Audio::default()
     };
-    for (l, r) in samples {
-        a.push_frame(l, r);
+    for frame in d.samples.chunks_exact(ch) {
+        a.push_frame(frame[0], if ch > 1 { frame[1] } else { frame[0] });
         if a.left.len().is_multiple_of(65_536) {
             a.check_len()?;
         }
@@ -222,5 +230,41 @@ mod tests {
         ));
         assert!(decode_bytes(b"RIFF\0\0\0\0WAVEjunk").is_err());
         assert!(decode_bytes(b"fLaC\0\0").is_err());
+    }
+
+    /// A real LAME-encoded MP3: 1 s of a 1 kHz sine at 44.1 kHz stereo.
+    #[test]
+    fn decodes_a_real_mp3() -> Result<(), Box<dyn std::error::Error>> {
+        let bytes = include_bytes!("../testdata/sine-1k-1s.mp3");
+        let a = decode_bytes(bytes)?;
+        assert!((a.sample_rate - 44_100.0).abs() < 1.0);
+        assert!((a.seconds() - 1.0).abs() < 0.05, "{} s", a.seconds());
+        let peak = a.left.iter().fold(0.0f32, |m, x| m.max(x.abs()));
+        // ffmpeg decodes this file to a -21.5 dBFS peak (0.084).
+        assert!((peak - 0.084).abs() < 0.005, "peak {peak}");
+        // Count rising zero crossings over the middle half: about 500 for 1 kHz.
+        let mid = &a.left[a.left.len() / 4..a.left.len() * 3 / 4];
+        let ups = mid.windows(2).filter(|w| w[0] < 0.0 && w[1] >= 0.0).count();
+        assert!((480..=520).contains(&ups), "{ups} crossings");
+        Ok(())
+    }
+
+    /// Truncated and bit-flipped MP3s must come back as an error or audio, never a panic.
+    #[test]
+    fn damaged_mp3_never_panics() {
+        let good = include_bytes!("../testdata/sine-1k-1s.mp3");
+        for cut in [10, 400, 1_000, 5_000] {
+            let _ = decode_bytes(&good[..cut.min(good.len())]);
+        }
+        let mut bad = good.to_vec();
+        let mut x: u32 = 0x1234_5678;
+        for _ in 0..200 {
+            x ^= x << 13;
+            x ^= x >> 17;
+            x ^= x << 5;
+            let i = 4 + (x as usize % (bad.len() - 4));
+            bad[i] ^= (x >> 24) as u8;
+        }
+        let _ = decode_bytes(&bad);
     }
 }
