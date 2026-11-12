@@ -20,6 +20,7 @@ fn cstr(buf: &[c_char]) -> String {
     String::from_utf8_lossy(&bytes).into_owned()
 }
 
+#[allow(clippy::unnecessary_cast)] // TChar is u16 on some targets only
 fn wstr(buf: &[TChar]) -> String {
     let units: Vec<u16> = buf
         .iter()
