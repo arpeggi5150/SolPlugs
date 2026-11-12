@@ -1,0 +1,29 @@
+[package]
+name = "solplugs-ref-app"
+description = "The SolPlugs reference analyzer as an embeddable app: audio-thread processor, background worker and egui UI. Used by the VST3/CLAP plugin and by Solara."
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+rust-version.workspace = true
+
+[features]
+default = ["deezer"]
+deezer = ["solplugs-ref-io/deezer"]
+
+[dependencies]
+solplugs-ref-core.workspace = true
+solplugs-ref-io.workspace = true
+solplugs-route.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+log.workspace = true
+rtrb.workspace = true
+arc-swap.workspace = true
+egui = "0.37"
+
+# Native file dialogs (Windows and macOS; elsewhere paths are typed in).
+[target.'cfg(any(windows, target_os = "macos"))'.dependencies]
+rfd = { version = "0.17", default-features = false }
+
+[lints]
+workspace = true

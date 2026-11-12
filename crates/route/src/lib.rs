@@ -98,6 +98,7 @@ impl Feed {
 
 /// Pushes interleaved frames of any channel count into the ring as stereo, dropping what
 /// doesn't fit (the reader fell behind; losing audio beats blocking the device thread).
+#[cfg_attr(not(windows), allow(dead_code))]
 fn push_stereo(tx: &mut rtrb::Producer<f32>, data: &[f32], channels: usize) {
     let channels = channels.max(1);
     for frame in data.chunks_exact(channels) {
