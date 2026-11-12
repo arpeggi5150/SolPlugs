@@ -13,7 +13,7 @@ repository = "https://github.com/arpeggi5150/SolPlugs"
 solplugs-ref-core = { path = "crates/ref-core" }
 solplugs-ref-io = { path = "crates/ref-io" }
 solplugs-route = { path = "crates/route" }
-solplugs-ref-ui = { path = "crates/ref-ui" }
+solplugs-ref-app = { path = "crates/ref-app", default-features = false }
 
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"

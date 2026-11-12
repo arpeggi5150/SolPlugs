@@ -1,0 +1,31 @@
+[package]
+name = "solplugs-reference"
+description = "SolPlugs Reference: the reference analyzer as a VST3 and CLAP plugin."
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+rust-version.workspace = true
+
+[lib]
+crate-type = ["cdylib", "rlib"]
+
+[dependencies]
+solplugs-ref-app = { workspace = true, features = ["deezer"] }
+log.workspace = true
+egui = "0.37"
+egui-baseview = { version = "0.9", default-features = false, features = ["opengl", "log"] }
+raw-window-handle = "0.6"
+clack-plugin = "0.2"
+clack-extensions = { version = "0.2", features = ["clack-plugin", "audio-ports", "gui", "latency", "state", "raw-window-handle_06"] }
+vst3 = "0.3"
+
+# The plugin-format glue is FFI. Unsafe code is denied crate-wide and allowed only in the
+# VST3 module and the editor's parent-window handle, each block with a SAFETY comment.
+[lints.rust]
+unsafe_code = "deny"
+
+[lints.clippy]
+cognitive_complexity = "deny"
+dbg_macro = "warn"
+too_many_arguments = "deny"
+needless_range_loop = "allow"
