@@ -186,6 +186,8 @@ fn loud_hits(hits: Vec<usize>, env: &[f64], range_db: f64) -> Vec<usize> {
 
 struct HitStats {
     outline: [f64; BANDS],
+    /// Mean rise per band at the hits, dB (post over pre): high where the element dominates.
+    rise_db: [f64; BANDS],
     punch_db: f64,
     decay_ms: f64,
 }
@@ -198,6 +200,7 @@ fn hit_stats(
     hop_ms: f64,
 ) -> HitStats {
     let mut added = [0.0f64; BANDS];
+    let mut rise_db = [0.0f64; BANDS];
     let mut decays = Vec::with_capacity(hits.len());
     let mut punches = Vec::with_capacity(hits.len());
     for &t in hits {
@@ -206,6 +209,9 @@ fn hit_stats(
         for b in 0..BANDS {
             let a = frames[post].total(b).max(frames[t].total(b)) - frames[pre].total(b);
             added[b] += a.max(0.0) / hits.len() as f64;
+            let after = frames[post].total(b).max(frames[t].total(b));
+            let before = frames[pre].total(b);
+            rise_db[b] += (power_db(after + 1e-12) - power_db(before + 1e-12)) / hits.len() as f64;
         }
         punches.push(rise[t]);
         let peak = region_db(&frames[post], region).max(region_db(&frames[t], region));
@@ -223,6 +229,7 @@ fn hit_stats(
     }
     HitStats {
         outline,
+        rise_db,
         punch_db: percentile(&punches, 0.5),
         decay_ms: percentile(&decays, 0.5),
     }
@@ -230,18 +237,25 @@ fn hit_stats(
 
 /// How far below its peak an outline may fall and still count as part of the element.
 const OUTLINE_RANGE_DB: f64 = 18.0;
+/// A band belongs to a hit element only if it rises at least this much on the hits.
+const MIN_RISE_DB: f64 = 3.0;
 
 /// Turns an outline into a [`Part`]: around the peak of each anchor range, the contiguous
 /// run of bands (inside `span`) that stay within [`OUTLINE_RANGE_DB`] of the strongest
 /// anchor. Contiguity keeps spill from hats or bass notes that happen to coincide with hits
 /// from stretching the outline; several anchors let a snare show its body and its snap.
 /// `peak_hz` is the peak of the first anchor.
+///
+/// With `rise_db` (per-band rise at the hits), peaks are where the element stands out most
+/// rather than where the mix is loudest, and bands that barely rise (a bass line or pad
+/// that happens to sound on the hit) are left out.
 fn finish(
     kind: PartKind,
     mut outline: [f64; BANDS],
     reference_db: f64,
     span: std::ops::Range<usize>,
     anchors: &[std::ops::Range<usize>],
+    rise_db: Option<&[f64; BANDS]>,
 ) -> Part {
     for (b, x) in outline.iter_mut().enumerate() {
         *x = if span.contains(&b) {
@@ -250,24 +264,27 @@ fn finish(
             FLOOR_DB
         };
     }
+    let score = |b: usize| rise_db.map_or(outline[b], |r| r[b]);
+    let stands_out = |b: usize| rise_db.is_none_or(|r| r[b] >= MIN_RISE_DB);
     let peak_of = |r: &std::ops::Range<usize>| {
         r.clone()
             .filter(|b| span.contains(b))
-            .max_by(|&a, &b| outline[a].total_cmp(&outline[b]))
+            .max_by(|&a, &b| score(a).total_cmp(&score(b)))
     };
     let peaks: Vec<usize> = anchors.iter().filter_map(peak_of).collect();
     let top = peaks.iter().map(|&b| outline[b]).fold(FLOOR_DB, f64::max);
     let floor = top - OUTLINE_RANGE_DB;
     let mut keep = [false; BANDS];
     for &p in &peaks {
-        if outline[p] <= FLOOR_DB || outline[p] < floor {
+        if outline[p] <= FLOOR_DB || outline[p] < floor || !stands_out(p) {
             continue;
         }
+        let ok = |b: usize| outline[b] >= floor && stands_out(b);
         let (mut lo, mut hi) = (p, p);
-        while lo > span.start && outline[lo - 1] >= floor {
+        while lo > span.start && ok(lo - 1) {
             lo -= 1;
         }
-        while hi + 1 < span.end && outline[hi + 1] >= floor {
+        while hi + 1 < span.end && ok(hi + 1) {
             hi += 1;
         }
         for k in &mut keep[lo..=hi] {
@@ -357,6 +374,7 @@ pub fn detect_parts(left: &[f32], right: &[f32], sample_rate: f64) -> Parts {
             reference_db,
             bands_between(25.0, 10_000.0),
             &[bands_between(35.0, 150.0)],
+            Some(&s.rise_db),
         );
         p.hits_per_min = kicks.len() as f64 / minutes.max(1e-9);
         p.punch_db = s.punch_db;
@@ -369,10 +387,11 @@ pub fn detect_parts(left: &[f32], right: &[f32], sample_rate: f64) -> Parts {
             PartKind::Snare,
             s.outline,
             reference_db,
-            bands_between(100.0, 16_000.0),
+            bands_between(140.0, 16_000.0),
             // The shell resonance (below ~160 Hz the rise is mostly bass notes on the
             // beat), then the wires.
             &[bands_between(160.0, 400.0), bands_between(2000.0, 8000.0)],
+            Some(&s.rise_db),
         );
         p.hits_per_min = snares.len() as f64 / minutes.max(1e-9);
         p.punch_db = s.punch_db;
@@ -402,6 +421,7 @@ pub fn detect_parts(left: &[f32], right: &[f32], sample_rate: f64) -> Parts {
             reference_db,
             bands_between(20.0, 80.0),
             &[bands_between(20.0, 80.0)],
+            None,
         );
         // A sub that sits 35 dB under the track is not a sub.
         if p.level_db > -35.0 {
@@ -450,6 +470,44 @@ mod tests {
             *o = s as f32;
         }
         out
+    }
+
+    /// The groove under a busy mix: a bass line that re-triggers on every beat (so it rises
+    /// with the snare) and a steady bright pad. The snare must still be placed at its body,
+    /// not wherever the mix is loudest.
+    #[test]
+    fn snare_is_placed_at_its_body_in_a_dense_mix() {
+        let sr = 48_000.0;
+        let mut g = groove(sr, 16.0);
+        let beat = (sr * 0.5) as usize;
+        let mut x: u32 = 99;
+        for (i, o) in g.iter_mut().enumerate() {
+            let t = i as f64 / sr;
+            let note = if (i / beat) % 2 == 0 { 98.0 } else { 123.0 };
+            let tb = (i % beat) as f64 / sr;
+            let bass = 0.3 * (-tb * 4.0).exp() * (2.0 * std::f64::consts::PI * note * t).sin();
+            x ^= x << 13;
+            x ^= x >> 17;
+            x ^= x << 5;
+            let pad = 0.05 * (x as f64 / u32::MAX as f64 - 0.5);
+            *o += (bass + pad) as f32;
+        }
+        let p = detect_parts(&g, &g, sr);
+        let snare = p
+            .get(PartKind::Snare)
+            .cloned()
+            .unwrap_or_else(|| Part::missing(PartKind::Snare));
+        assert!(snare.found, "{p:#?}");
+        assert!(
+            (180.0..260.0).contains(&snare.peak_hz),
+            "snare at {}",
+            snare.peak_hz
+        );
+        assert!(
+            snare.lo_hz >= 140.0,
+            "snare outline starts at {}",
+            snare.lo_hz
+        );
     }
 
     #[test]
