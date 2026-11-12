@@ -228,13 +228,20 @@ fn hit_stats(
     }
 }
 
-/// Turns an outline into a [`Part`]: keeps bands within 24 dB of its peak inside `span`.
+/// How far below its peak an outline may fall and still count as part of the element.
+const OUTLINE_RANGE_DB: f64 = 18.0;
+
+/// Turns an outline into a [`Part`]: around the peak of each anchor range, the contiguous
+/// run of bands (inside `span`) that stay within [`OUTLINE_RANGE_DB`] of the strongest
+/// anchor. Contiguity keeps spill from hats or bass notes that happen to coincide with hits
+/// from stretching the outline; several anchors let a snare show its body and its snap.
+/// `peak_hz` is the peak of the first anchor.
 fn finish(
     kind: PartKind,
     mut outline: [f64; BANDS],
     reference_db: f64,
     span: std::ops::Range<usize>,
-    fundamental: std::ops::Range<usize>,
+    anchors: &[std::ops::Range<usize>],
 ) -> Part {
     for (b, x) in outline.iter_mut().enumerate() {
         *x = if span.contains(&b) {
@@ -243,17 +250,37 @@ fn finish(
             FLOOR_DB
         };
     }
-    let max = span.clone().map(|b| outline[b]).fold(FLOOR_DB, f64::max);
-    for x in &mut outline {
-        if *x < max - 24.0 {
+    let peak_of = |r: &std::ops::Range<usize>| {
+        r.clone()
+            .filter(|b| span.contains(b))
+            .max_by(|&a, &b| outline[a].total_cmp(&outline[b]))
+    };
+    let peaks: Vec<usize> = anchors.iter().filter_map(peak_of).collect();
+    let top = peaks.iter().map(|&b| outline[b]).fold(FLOOR_DB, f64::max);
+    let floor = top - OUTLINE_RANGE_DB;
+    let mut keep = [false; BANDS];
+    for &p in &peaks {
+        if outline[p] <= FLOOR_DB || outline[p] < floor {
+            continue;
+        }
+        let (mut lo, mut hi) = (p, p);
+        while lo > span.start && outline[lo - 1] >= floor {
+            lo -= 1;
+        }
+        while hi + 1 < span.end && outline[hi + 1] >= floor {
+            hi += 1;
+        }
+        for k in &mut keep[lo..=hi] {
+            *k = true;
+        }
+    }
+    for (b, x) in outline.iter_mut().enumerate() {
+        if !keep[b] {
             *x = FLOOR_DB;
         }
     }
-    let kept: Vec<usize> = (0..BANDS).filter(|&b| outline[b] > FLOOR_DB).collect();
-    let peak_band = fundamental
-        .clone()
-        .max_by(|&a, &b| outline[a].total_cmp(&outline[b]))
-        .unwrap_or(0);
+    let peak_band = peaks.first().copied().unwrap_or(0);
+    let kept: Vec<usize> = (0..BANDS).filter(|&b| keep[b]).collect();
     let energy: f64 = kept.iter().map(|&b| 10f64.powf(outline[b] / 10.0)).sum();
     Part {
         kind,
@@ -329,7 +356,7 @@ pub fn detect_parts(left: &[f32], right: &[f32], sample_rate: f64) -> Parts {
             s.outline,
             reference_db,
             bands_between(25.0, 10_000.0),
-            bands_between(35.0, 150.0),
+            &[bands_between(35.0, 150.0)],
         );
         p.hits_per_min = kicks.len() as f64 / minutes.max(1e-9);
         p.punch_db = s.punch_db;
@@ -343,7 +370,9 @@ pub fn detect_parts(left: &[f32], right: &[f32], sample_rate: f64) -> Parts {
             s.outline,
             reference_db,
             bands_between(100.0, 16_000.0),
-            bands_between(120.0, 400.0),
+            // The shell resonance (below ~160 Hz the rise is mostly bass notes on the
+            // beat), then the wires.
+            &[bands_between(160.0, 400.0), bands_between(2000.0, 8000.0)],
         );
         p.hits_per_min = snares.len() as f64 / minutes.max(1e-9);
         p.punch_db = s.punch_db;
@@ -372,7 +401,7 @@ pub fn detect_parts(left: &[f32], right: &[f32], sample_rate: f64) -> Parts {
             sub_acc,
             reference_db,
             bands_between(20.0, 80.0),
-            bands_between(20.0, 80.0),
+            &[bands_between(20.0, 80.0)],
         );
         // A sub that sits 35 dB under the track is not a sub.
         if p.level_db > -35.0 {

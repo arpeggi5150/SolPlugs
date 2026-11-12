@@ -127,16 +127,34 @@ fn issues(bands: &[BandDiff], opts: DiffOptions) -> Vec<Issue> {
         if worst.abs() < opts.min_issue_db || run.len() < 2 {
             continue;
         }
-        let region = region_of(centre(worst_band)).name.to_string();
+        // Name the whole run, not just its worst band: "Mids to Air" for a wide one.
+        let first = region_of(centre(start)).name;
+        let last = region_of(centre(b - 1)).name;
+        let region = if first == last {
+            first.to_string()
+        } else {
+            format!("{first} to {last}")
+        };
         let (lo, hi) = (lower_edge(start), upper_edge(b - 1));
         let dir = if worst > 0.0 { "above" } else { "below" };
-        out.push(Issue {
-            text: format!(
+        let text = if run.len() > 3 {
+            format!(
+                "{region}: up to {:.1} dB {dir} the references, most at {} ({}-{})",
+                worst.abs(),
+                hz(centre(worst_band)),
+                hz(lo),
+                hz(hi)
+            )
+        } else {
+            format!(
                 "{region}: {:.1} dB {dir} the references ({}-{})",
                 worst.abs(),
                 hz(lo),
                 hz(hi)
-            ),
+            )
+        };
+        out.push(Issue {
+            text,
             region,
             lo_hz: lo,
             hi_hz: hi,
@@ -283,7 +301,7 @@ mod tests {
         assert_eq!(d.bands[10].outside, 0.0);
         assert_eq!(d.issues.len(), 1);
         assert!(
-            d.issues[0].text.starts_with("Low-mids: 3.5 dB above"),
+            d.issues[0].text.starts_with("Low-mids: up to 3.5 dB above"),
             "{}",
             d.issues[0].text
         );

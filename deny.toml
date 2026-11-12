@@ -13,5 +13,7 @@ allow = [
     "BSL-1.0",            # clipboard-win (egui-baseview clipboard on Windows)
     "Unicode-3.0",        # ICU data crates
     "CDLA-Permissive-2.0", # webpki-root-certs (ureq)
+    "OFL-1.1",            # egui default fonts (Noto Emoji)
+    "Ubuntu-font-1.0",    # egui default fonts (Ubuntu-Light)
 ]
 confidence-threshold = 0.9
