@@ -30,12 +30,30 @@ pub(crate) enum Msg {
 }
 
 enum Job {
-    Imported { path: PathBuf, profile: Box<Profile>, audio: Audio },
-    Loaded { id: String, audio: Audio },
+    Imported {
+        path: PathBuf,
+        profile: Box<Profile>,
+        audio: Audio,
+    },
+    Loaded {
+        id: String,
+        audio: Audio,
+    },
     SearchDone(Result<Vec<SearchHit>, String>),
-    Previewed { hit: SearchHit, profile: Box<Profile>, audio: Audio },
-    Captured { title: String, profile: Box<Profile>, audio: Audio },
-    Failed { what: String, error: String },
+    Previewed {
+        hit: SearchHit,
+        profile: Box<Profile>,
+        audio: Audio,
+    },
+    Captured {
+        title: String,
+        profile: Box<Profile>,
+        audio: Audio,
+    },
+    Failed {
+        what: String,
+        error: String,
+    },
 }
 
 struct Cached {
@@ -70,7 +88,9 @@ pub(crate) struct Worker {
 }
 
 fn file_title(path: &Path) -> String {
-    path.file_stem().map(|s| s.to_string_lossy().into_owned()).unwrap_or_else(|| "Reference".into())
+    path.file_stem()
+        .map(|s| s.to_string_lossy().into_owned())
+        .unwrap_or_else(|| "Reference".into())
 }
 
 fn mtime(path: &Path) -> Option<SystemTime> {
@@ -136,7 +156,9 @@ impl Worker {
     }
 
     fn load_library(&mut self) {
-        let Some(path) = self.st(|s| s.library_path.clone()) else { return };
+        let Some(path) = self.st(|s| s.library_path.clone()) else {
+            return;
+        };
         match Library::load(&path) {
             Ok(lib) => {
                 self.lib_mtime = mtime(&path);
@@ -151,7 +173,9 @@ impl Worker {
     }
 
     fn save_library(&mut self) {
-        let Some((lib, path)) = self.st(|s| (s.library.clone(), s.library_path.clone())) else { return };
+        let Some((lib, path)) = self.st(|s| (s.library.clone(), s.library_path.clone())) else {
+            return;
+        };
         if let Err(e) = lib.save(&path) {
             self.notify(true, format!("Couldn't save the reference library: {e}"));
         }
@@ -213,7 +237,12 @@ impl Worker {
                 let name = name.trim().to_string();
                 if !name.is_empty() {
                     self.st(|s| {
-                        let members = s.group.iter().filter(|id| s.library.get(id).is_some()).cloned().collect();
+                        let members = s
+                            .group
+                            .iter()
+                            .filter(|id| s.library.get(id).is_some())
+                            .cloned()
+                            .collect();
                         s.library.group_mut(&name).members = members;
                     });
                     self.save_library();
@@ -268,7 +297,9 @@ impl Worker {
             Command::ExportLibrary(path) => {
                 let lib = self.st(|s| s.library.clone()).unwrap_or_default();
                 match lib.save(&path) {
-                    Ok(()) => self.notify(false, format!("Exported the library to {}", path.display())),
+                    Ok(()) => {
+                        self.notify(false, format!("Exported the library to {}", path.display()))
+                    }
                     Err(e) => self.notify(true, format!("Export failed: {e}")),
                 }
             }
@@ -298,10 +329,15 @@ impl Worker {
 
     fn import(&mut self, paths: Vec<PathBuf>) {
         let room = self
-            .st(|s| solplugs_ref_io::library::MAX_REFERENCES.saturating_sub(s.library.references.len()))
+            .st(|s| {
+                solplugs_ref_io::library::MAX_REFERENCES.saturating_sub(s.library.references.len())
+            })
             .unwrap_or(0);
         if room == 0 {
-            self.notify(true, "The library is full (60 references). Remove one first.");
+            self.notify(
+                true,
+                "The library is full (60 references). Remove one first.",
+            );
             return;
         }
         for path in paths.into_iter().take(room) {
@@ -311,9 +347,16 @@ impl Worker {
                 let job = match decode_file(&path) {
                     Ok(audio) => {
                         let profile = analyze(&audio.left, &audio.right, audio.sample_rate);
-                        Job::Imported { path, profile: Box::new(profile), audio }
+                        Job::Imported {
+                            path,
+                            profile: Box::new(profile),
+                            audio,
+                        }
                     }
-                    Err(e) => Job::Failed { what: format!("Analysing {}", file_title(&path)), error: e.to_string() },
+                    Err(e) => Job::Failed {
+                        what: format!("Analysing {}", file_title(&path)),
+                        error: e.to_string(),
+                    },
                 };
                 let _ = tx.send(job);
             });
@@ -321,7 +364,9 @@ impl Worker {
     }
 
     fn set_active(&mut self, id: &str) {
-        let Some(entry) = self.st(|s| s.find(id)).flatten() else { return };
+        let Some(entry) = self.st(|s| s.find(id)).flatten() else {
+            return;
+        };
         self.st(|s| {
             s.active = Some(id.to_string());
             s.active_ready = false;
@@ -343,7 +388,10 @@ impl Worker {
                 std::thread::spawn(move || {
                     let job = match decode_file(&path) {
                         Ok(audio) => Job::Loaded { id, audio },
-                        Err(e) => Job::Failed { what: "Loading reference".into(), error: format!("{}: {e}", path.display()) },
+                        Err(e) => Job::Failed {
+                            what: "Loading reference".into(),
+                            error: format!("{}: {e}", path.display()),
+                        },
                     };
                     let _ = tx.send(job);
                 });
@@ -357,7 +405,10 @@ impl Worker {
 
     #[cfg(feature = "deezer")]
     fn stream_preview(&mut self, id: String, track_id: u64) {
-        if !self.st(|s| s.library.settings.online_search).unwrap_or(false) {
+        if !self
+            .st(|s| s.library.settings.online_search)
+            .unwrap_or(false)
+        {
             self.notify(true, "Turn on online search to play Deezer previews.");
             return;
         }
@@ -368,7 +419,10 @@ impl Worker {
             let job = solplugs_ref_io::deezer::track(track_id)
                 .and_then(|t| solplugs_ref_io::deezer::fetch_preview(&t))
                 .map(|audio| Job::Loaded { id, audio })
-                .unwrap_or_else(|e| Job::Failed { what: "Loading reference".into(), error: e.to_string() });
+                .unwrap_or_else(|e| Job::Failed {
+                    what: "Loading reference".into(),
+                    error: e.to_string(),
+                });
             let _ = tx.send(job);
         });
     }
@@ -380,11 +434,22 @@ impl Worker {
 
     fn cache_audio(&mut self, id: &str, audio: Audio) {
         self.cache.retain(|c| c.id != id);
-        self.cache.insert(0, Cached { id: id.to_string(), source: audio, prepared: None });
+        self.cache.insert(
+            0,
+            Cached {
+                id: id.to_string(),
+                source: audio,
+                prepared: None,
+            },
+        );
         // Never evict the reference that is playing.
         let playing = self.bridge.reference().as_ref().map(|r| r.id.clone());
         while self.cache.len() > CACHE {
-            match self.cache.iter().rposition(|c| Some(&c.id) != playing.as_ref()) {
+            match self
+                .cache
+                .iter()
+                .rposition(|c| Some(&c.id) != playing.as_ref())
+            {
                 Some(i) => {
                     self.cache.remove(i);
                 }
@@ -395,9 +460,13 @@ impl Worker {
 
     /// Makes the active reference playable at the host rate and hands it to the audio thread.
     fn publish_active(&mut self) {
-        let Some(active) = self.st(|s| s.active.clone()).flatten() else { return };
+        let Some(active) = self.st(|s| s.active.clone()).flatten() else {
+            return;
+        };
         let rate = self.bridge.host_rate().unwrap_or(48_000.0);
-        let Some(c) = self.cache.iter_mut().find(|c| c.id == active) else { return };
+        let Some(c) = self.cache.iter_mut().find(|c| c.id == active) else {
+            return;
+        };
         let ready = match &c.prepared {
             Some((r, a)) if (*r - rate).abs() < 0.5 => a.clone(),
             _ => {
@@ -432,10 +501,21 @@ impl Worker {
 
     fn job_done(&mut self, job: Job) {
         match job {
-            Job::Imported { path, profile, audio } => {
+            Job::Imported {
+                path,
+                profile,
+                audio,
+            } => {
                 let title = file_title(&path);
                 self.busy(&format!("Analysing {title}"), false);
-                let res = self.st(|s| s.library.add(&title, "", Origin::File { path: path.clone() }, *profile.clone()));
+                let res = self.st(|s| {
+                    s.library.add(
+                        &title,
+                        "",
+                        Origin::File { path: path.clone() },
+                        *profile.clone(),
+                    )
+                });
                 match res {
                     Some(Ok(id)) => {
                         self.cache_audio(&id, audio);
@@ -453,7 +533,10 @@ impl Worker {
                     self.loading = None;
                 }
                 self.cache_audio(&id, audio);
-                if self.st(|s| s.active.as_deref() == Some(id.as_str())).unwrap_or(false) {
+                if self
+                    .st(|s| s.active.as_deref() == Some(id.as_str()))
+                    .unwrap_or(false)
+                {
                     self.publish_active();
                 }
             }
@@ -462,31 +545,63 @@ impl Worker {
                     s.search.busy = false;
                     match res {
                         Ok(hits) => {
-                            s.search.error = if hits.is_empty() { Some("No previews found.".into()) } else { None };
+                            s.search.error = if hits.is_empty() {
+                                Some("No previews found.".into())
+                            } else {
+                                None
+                            };
                             s.search.results = hits;
                         }
                         Err(e) => s.search.error = Some(e),
                     }
                 });
             }
-            Job::Previewed { hit, profile, audio } => {
+            Job::Previewed {
+                hit,
+                profile,
+                audio,
+            } => {
                 self.busy("Loading preview", false);
-                let origin = Origin::Deezer { track_id: hit.id, link: hit.link.clone() };
+                let origin = Origin::Deezer {
+                    track_id: hit.id,
+                    link: hit.link.clone(),
+                };
                 let id = solplugs_ref_io::library::id_for(&origin, &hit.title);
                 self.st(|s| {
                     s.session.retain(|r| r.id != id);
-                    s.session.push(RefEntry { id: id.clone(), title: hit.title.clone(), artist: hit.artist.clone(), origin, profile: *profile, in_library: false });
+                    s.session.push(RefEntry {
+                        id: id.clone(),
+                        title: hit.title.clone(),
+                        artist: hit.artist.clone(),
+                        origin,
+                        profile: *profile,
+                        in_library: false,
+                    });
                 });
                 self.cache_audio(&id, audio);
                 self.add_to_group_and_activate(&id);
                 self.set_active(&id);
-                self.notify(false, format!("Loaded the preview of \"{}\" (not saved yet)", hit.title));
+                self.notify(
+                    false,
+                    format!("Loaded the preview of \"{}\" (not saved yet)", hit.title),
+                );
             }
-            Job::Captured { title, profile, audio } => {
+            Job::Captured {
+                title,
+                profile,
+                audio,
+            } => {
                 self.busy("Analysing capture", false);
                 let id = solplugs_ref_io::library::id_for(&Origin::Capture, &title);
                 self.st(|s| {
-                    s.session.push(RefEntry { id: id.clone(), title: title.clone(), artist: "SolRoute".into(), origin: Origin::Capture, profile: *profile, in_library: false });
+                    s.session.push(RefEntry {
+                        id: id.clone(),
+                        title: title.clone(),
+                        artist: "SolRoute".into(),
+                        origin: Origin::Capture,
+                        profile: *profile,
+                        in_library: false,
+                    });
                 });
                 self.cache_audio(&id, audio);
                 self.add_to_group_and_activate(&id);
@@ -507,8 +622,20 @@ impl Worker {
     }
 
     fn save_session(&mut self, id: &str) {
-        let Some(entry) = self.st(|s| s.session.iter().find(|r| r.id == id).cloned()).flatten() else { return };
-        let res = self.st(|s| s.library.add(&entry.title, &entry.artist, entry.origin.clone(), entry.profile.clone()));
+        let Some(entry) = self
+            .st(|s| s.session.iter().find(|r| r.id == id).cloned())
+            .flatten()
+        else {
+            return;
+        };
+        let res = self.st(|s| {
+            s.library.add(
+                &entry.title,
+                &entry.artist,
+                entry.origin.clone(),
+                entry.profile.clone(),
+            )
+        });
         match res {
             Some(Ok(new_id)) => {
                 self.st(|s| {
@@ -526,7 +653,10 @@ impl Worker {
                     c.id = new_id;
                 }
                 self.save_library();
-                self.notify(false, format!("Saved \"{}\" to the library (analysis only)", entry.title));
+                self.notify(
+                    false,
+                    format!("Saved \"{}\" to the library (analysis only)", entry.title),
+                );
             }
             Some(Err(e)) => self.notify(true, e.to_string()),
             None => {}
@@ -535,7 +665,11 @@ impl Worker {
 
     #[cfg(feature = "deezer")]
     fn search(&mut self, q: String) {
-        if !self.st(|s| s.library.settings.online_search).unwrap_or(false) || q.trim().is_empty() {
+        if !self
+            .st(|s| s.library.settings.online_search)
+            .unwrap_or(false)
+            || q.trim().is_empty()
+        {
             return;
         }
         self.st(|s| {
@@ -548,7 +682,15 @@ impl Worker {
             let res = solplugs_ref_io::deezer::search(&q, 25)
                 .map(|v| {
                     v.into_iter()
-                        .map(|t| SearchHit { id: t.id, title: t.title, artist: t.artist, album: t.album, duration_secs: t.duration_secs, preview_url: t.preview_url, link: t.link })
+                        .map(|t| SearchHit {
+                            id: t.id,
+                            title: t.title,
+                            artist: t.artist,
+                            album: t.album,
+                            duration_secs: t.duration_secs,
+                            preview_url: t.preview_url,
+                            link: t.link,
+                        })
                         .collect()
                 })
                 .map_err(|e| e.to_string());
@@ -558,7 +700,10 @@ impl Worker {
 
     #[cfg(feature = "deezer")]
     fn preview(&mut self, hit: SearchHit) {
-        if !self.st(|s| s.library.settings.online_search).unwrap_or(false) {
+        if !self
+            .st(|s| s.library.settings.online_search)
+            .unwrap_or(false)
+        {
             return;
         }
         let tx = self.jobs_tx.clone();
@@ -576,9 +721,16 @@ impl Worker {
             let job = match solplugs_ref_io::deezer::fetch_preview(&track) {
                 Ok(audio) => {
                     let profile = analyze(&audio.left, &audio.right, audio.sample_rate);
-                    Job::Previewed { hit, profile: Box::new(profile), audio }
+                    Job::Previewed {
+                        hit,
+                        profile: Box::new(profile),
+                        audio,
+                    }
                 }
-                Err(e) => Job::Failed { what: "Loading preview".into(), error: e.to_string() },
+                Err(e) => Job::Failed {
+                    what: "Loading preview".into(),
+                    error: e.to_string(),
+                },
             };
             let _ = tx.send(job);
         });
@@ -594,7 +746,10 @@ impl Worker {
         match solplugs_route::sources() {
             Ok(list) => {
                 self.st(|s| {
-                    s.route.sources = list.into_iter().map(|d| (d.id, d.name, d.is_default)).collect();
+                    s.route.sources = list
+                        .into_iter()
+                        .map(|d| (d.id, d.name, d.is_default))
+                        .collect();
                     s.route.error = None;
                 });
             }
@@ -640,13 +795,25 @@ impl Worker {
             self.notify(true, "Capture at least 3 seconds first.");
             return;
         }
-        let audio = Audio { sample_rate: feed.sample_rate(), left: self.route_l.clone(), right: self.route_r.clone() };
-        let title = if title.trim().is_empty() { "SolRoute capture".to_string() } else { title.trim().to_string() };
+        let audio = Audio {
+            sample_rate: feed.sample_rate(),
+            left: self.route_l.clone(),
+            right: self.route_r.clone(),
+        };
+        let title = if title.trim().is_empty() {
+            "SolRoute capture".to_string()
+        } else {
+            title.trim().to_string()
+        };
         let tx = self.jobs_tx.clone();
         self.busy("Analysing capture", true);
         std::thread::spawn(move || {
             let profile = analyze(&audio.left, &audio.right, audio.sample_rate);
-            let _ = tx.send(Job::Captured { title, profile: Box::new(profile), audio });
+            let _ = tx.send(Job::Captured {
+                title,
+                profile: Box::new(profile),
+                audio,
+            });
         });
     }
 
@@ -658,7 +825,11 @@ impl Worker {
             self.generation = g;
             self.mix_rx = self.bridge.mix_rx.lock().ok().and_then(|mut s| s.take());
             let rate = self.bridge.host_rate().unwrap_or(48_000.0);
-            if self.mix.as_ref().is_none_or(|m| (m.sample_rate() - rate).abs() > 0.5) {
+            if self
+                .mix
+                .as_ref()
+                .is_none_or(|m| (m.sample_rate() - rate).abs() > 0.5)
+            {
                 self.mix = Some(LiveAnalyzer::new(rate));
             }
             self.st(|s| s.audio_running = true);
@@ -700,7 +871,10 @@ impl Worker {
             let readings = self.mix.as_ref().map(LiveAnalyzer::readings);
             let mix_secs = self.mix.as_ref().map_or(0.0, LiveAnalyzer::seconds);
             let route = self.route_an.as_ref().map(LiveAnalyzer::readings);
-            let route_secs = self.route.as_ref().map_or(0.0, |f| self.route_l.len() as f64 / f.sample_rate());
+            let route_secs = self
+                .route
+                .as_ref()
+                .map_or(0.0, |f| self.route_l.len() as f64 / f.sample_rate());
             self.st(|s| {
                 if let Some(r) = readings {
                     s.readings = r;
@@ -719,7 +893,11 @@ impl Worker {
             if with_parts {
                 self.last_parts = now;
             }
-            let mix = self.mix.as_ref().filter(|m| m.seconds() >= 1.0).map(|m| m.profile(with_parts));
+            let mix = self
+                .mix
+                .as_ref()
+                .filter(|m| m.seconds() >= 1.0)
+                .map(|m| m.profile(with_parts));
             self.st(|s| {
                 if let Some(mut p) = mix {
                     if !with_parts && let Some(old) = &s.mix {
@@ -728,7 +906,12 @@ impl Worker {
                     s.mix = Some(p);
                 }
                 let all = s.all_refs();
-                let members: Vec<&Profile> = s.group.iter().filter_map(|id| all.iter().find(|r| &r.id == id)).map(|r| &r.profile).collect();
+                let members: Vec<&Profile> = s
+                    .group
+                    .iter()
+                    .filter_map(|id| all.iter().find(|r| &r.id == id))
+                    .map(|r| &r.profile)
+                    .collect();
                 s.group_stats = group_stats(&members);
                 s.diff = match (&s.mix, &s.group_stats) {
                     (Some(m), Some(g)) => Some(diff(m, g, DiffOptions::default())),
@@ -749,15 +932,27 @@ impl Worker {
 
     fn update_match(&self) {
         let Some((on, active, mix_i, short)) = self.st(|s| {
-            let active = s.active.as_ref().and_then(|id| s.find(id)).and_then(|r| r.profile.integrated_lufs);
-            (s.level_match, active, s.mix.as_ref().and_then(|m| m.integrated_lufs), s.readings.short_term_lufs)
+            let active = s
+                .active
+                .as_ref()
+                .and_then(|id| s.find(id))
+                .and_then(|r| r.profile.integrated_lufs);
+            (
+                s.level_match,
+                active,
+                s.mix.as_ref().and_then(|m| m.integrated_lufs),
+                s.readings.short_term_lufs,
+            )
         }) else {
             return;
         };
         let gain = match (on, active) {
             (true, Some(ref_lufs)) => {
                 let target = mix_i.or(short).unwrap_or(FALLBACK_TARGET_LUFS);
-                (target - ref_lufs).clamp(solplugs_ref_core::abswitch::MAX_MATCH_CUT_DB, solplugs_ref_core::abswitch::MAX_MATCH_BOOST_DB)
+                (target - ref_lufs).clamp(
+                    solplugs_ref_core::abswitch::MAX_MATCH_CUT_DB,
+                    solplugs_ref_core::abswitch::MAX_MATCH_BOOST_DB,
+                )
             }
             _ => 0.0,
         };

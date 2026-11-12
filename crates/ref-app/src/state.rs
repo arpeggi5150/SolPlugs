@@ -121,7 +121,13 @@ impl AppState {
                 in_library: true,
             })
             .collect();
-        v.extend(self.session.iter().filter(|s| !v.iter().any(|r| r.id == s.id)).cloned().collect::<Vec<_>>());
+        v.extend(
+            self.session
+                .iter()
+                .filter(|s| !v.iter().any(|r| r.id == s.id))
+                .cloned()
+                .collect::<Vec<_>>(),
+        );
         v
     }
 
@@ -133,7 +139,10 @@ impl AppState {
 
     /// Adds a status message, keeping the last few.
     pub fn notify(&mut self, error: bool, text: impl Into<String>) {
-        self.notices.push(Notice { error, text: text.into() });
+        self.notices.push(Notice {
+            error,
+            text: text.into(),
+        });
         if self.notices.len() > 6 {
             self.notices.remove(0);
         }
@@ -156,7 +165,11 @@ pub struct SavedState {
 pub enum Command {
     ImportFiles(Vec<PathBuf>),
     Remove(String),
-    Rename { id: String, title: String, artist: String },
+    Rename {
+        id: String,
+        title: String,
+        artist: String,
+    },
     ToggleInGroup(String),
     SetActive(String),
     SaveGroup(String),
@@ -173,7 +186,9 @@ pub enum Command {
     RouteSelect(Option<String>),
     RouteStart,
     RouteStop,
-    RouteUse { title: String },
+    RouteUse {
+        title: String,
+    },
     ExportLibrary(PathBuf),
     ImportLibrary(PathBuf),
     SetTilt(f64),

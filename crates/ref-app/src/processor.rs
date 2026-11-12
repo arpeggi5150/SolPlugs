@@ -29,7 +29,11 @@ impl Processor {
     /// Creates the processor for an activation at `sample_rate` with blocks up to `max_block`.
     #[must_use]
     pub fn new(bridge: Arc<Bridge>, sample_rate: f64, max_block: usize) -> Self {
-        let sr = if sample_rate.is_finite() && sample_rate > 0.0 { sample_rate } else { 48_000.0 };
+        let sr = if sample_rate.is_finite() && sample_rate > 0.0 {
+            sample_rate
+        } else {
+            48_000.0
+        };
         let (tx, rx) = rtrb::RingBuffer::new((sr * RING_SECONDS) as usize * 2);
         bridge.activated(sr, rx);
         let block = max_block.clamp(32, 1 << 16);
@@ -37,7 +41,14 @@ impl Processor {
         if bridge.listening_to_reference() {
             ab.set_source(Source::Reference);
         }
-        Self { bridge, tx, ab, pos: 0, ref_l: vec![0.0; block], ref_r: vec![0.0; block] }
+        Self {
+            bridge,
+            tx,
+            ab,
+            pos: 0,
+            ref_l: vec![0.0; block],
+            ref_r: vec![0.0; block],
+        }
     }
 
     /// Processes one block in place. `left`/`right` hold the mix on entry.
@@ -46,7 +57,10 @@ impl Processor {
         // 1. The mix goes to the analyzer exactly as it arrives (dropped if the worker lags).
         let want = (n * 2).min(self.tx.slots() / 2 * 2);
         if let Ok(mut chunk) = self.tx.write_chunk(want) {
-            let mut it = left[..want / 2].iter().zip(&right[..want / 2]).flat_map(|(&l, &r)| [l, r]);
+            let mut it = left[..want / 2]
+                .iter()
+                .zip(&right[..want / 2])
+                .flat_map(|(&l, &r)| [l, r]);
             let (a, b) = chunk.as_mut_slices();
             for slot in a.iter_mut().chain(b.iter_mut()) {
                 *slot = it.next().unwrap_or(0.0);
@@ -54,11 +68,18 @@ impl Processor {
             chunk.commit_all();
         }
         // 2. A/B.
-        let target = if self.bridge.listening_to_reference() { Source::Reference } else { Source::Mix };
+        let target = if self.bridge.listening_to_reference() {
+            Source::Reference
+        } else {
+            Source::Mix
+        };
         self.ab.set_source(target);
-        self.ab.set_reference_gain_db(f64::from(self.bridge.reference_gain_db()));
+        self.ab
+            .set_reference_gain_db(f64::from(self.bridge.reference_gain_db()));
         let guard = self.bridge.reference();
-        let reference = guard.as_ref().filter(|r| !r.left.is_empty() && r.left.len() == r.right.len());
+        let reference = guard
+            .as_ref()
+            .filter(|r| !r.left.is_empty() && r.left.len() == r.right.len());
         if let Some(cue) = self.bridge.take_cue() {
             self.pos = cue as usize;
         }
@@ -89,7 +110,12 @@ impl Processor {
                     rr.fill(0.0);
                 }
             }
-            self.ab.process(&mut left[done..done + len], &mut right[done..done + len], rl, rr);
+            self.ab.process(
+                &mut left[done..done + len],
+                &mut right[done..done + len],
+                rl,
+                rr,
+            );
             done += len;
         }
         self.bridge.set_position(self.pos as u64);
@@ -117,7 +143,11 @@ mod tests {
     #[test]
     fn b_plays_the_reference_with_its_gain_and_loops() {
         let bridge = Arc::new(Bridge::default());
-        bridge.set_reference(Some(Arc::new(RefAudio { id: "x".into(), left: vec![0.5; 1000], right: vec![0.5; 1000] })));
+        bridge.set_reference(Some(Arc::new(RefAudio {
+            id: "x".into(),
+            left: vec![0.5; 1000],
+            right: vec![0.5; 1000],
+        })));
         bridge.set_reference_gain_db(0.0);
         bridge.set_listen_reference(true);
         let mut p = Processor::new(bridge.clone(), 48_000.0, 512);

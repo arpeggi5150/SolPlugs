@@ -31,7 +31,11 @@ impl Engine {
     #[must_use]
     pub fn with_library(path: PathBuf) -> Self {
         let bridge = Arc::new(Bridge::default());
-        let state = Arc::new(Mutex::new(AppState { library_path: path, level_match: true, ..AppState::default() }));
+        let state = Arc::new(Mutex::new(AppState {
+            library_path: path,
+            level_match: true,
+            ..AppState::default()
+        }));
         let (tx, rx) = channel();
         let worker = Worker::new(bridge.clone(), state.clone(), rx);
         let thread = std::thread::Builder::new()
@@ -39,7 +43,12 @@ impl Engine {
             .spawn(move || worker.run())
             .map_err(|e| log::error!("can't start the reference worker: {e}"))
             .ok();
-        Self { bridge, state, tx, thread }
+        Self {
+            bridge,
+            state,
+            tx,
+            thread,
+        }
     }
 
     /// The audio-thread bridge, for [`crate::processor::Processor::new`].
