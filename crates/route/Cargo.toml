@@ -1,0 +1,19 @@
+[package]
+name = "solplugs-route"
+description = "SolRoute feed-in: system audio (any app playing on the machine) as a reference source."
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+rust-version.workspace = true
+
+[dependencies]
+thiserror.workspace = true
+log.workspace = true
+rtrb.workspace = true
+
+# WASAPI loopback. Other platforms get a clear "not available yet" until their backend lands.
+[target.'cfg(windows)'.dependencies]
+cpal = "0.18"
+
+[lints]
+workspace = true
