@@ -233,4 +233,24 @@ mod tests {
         assert_eq!(encode_query("AC/DC & co"), "AC%2FDC%20%26%20co");
         assert_eq!(encode_query("é"), "%C3%A9");
     }
+
+    /// Live check against the real API: `cargo test -p solplugs-ref-io -- --ignored deezer_live`.
+    #[test]
+    #[ignore = "needs network access to api.deezer.com"]
+    #[allow(clippy::expect_used)]
+    fn deezer_live_search_returns_a_playable_preview() {
+        let hits = search("daft punk around the world", 5).expect("search");
+        assert!(!hits.is_empty(), "no results");
+        let t = &hits[0];
+        println!("first hit: {} - {} (id {})", t.artist, t.title, t.id);
+        let audio = fetch_preview(t).expect("preview");
+        println!(
+            "preview: {:.1} s at {} Hz",
+            audio.seconds(),
+            audio.sample_rate
+        );
+        assert!(audio.seconds() > 20.0 && audio.seconds() < 40.0);
+        let peak = audio.left.iter().fold(0.0f32, |m, x| m.max(x.abs()));
+        assert!(peak > 0.01, "silent preview");
+    }
 }

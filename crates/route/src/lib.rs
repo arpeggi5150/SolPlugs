@@ -236,4 +236,32 @@ mod tests {
         let got: Vec<f32> = std::iter::from_fn(|| rx.pop().ok()).collect();
         assert_eq!(got, vec![0.5, 0.5, 0.25, 0.25]);
     }
+
+    /// Live check: play audio on the default output, then
+    /// `cargo test -p solplugs-route -- --ignored --nocapture route_live`.
+    #[test]
+    #[ignore = "needs a sound device with audio playing"]
+    #[allow(clippy::expect_used)]
+    fn route_live_captures_system_audio() {
+        let mut feed = Feed::start(None).expect("start capture");
+        println!("capturing {} at {} Hz", feed.name(), feed.sample_rate());
+        let mut frames = 0usize;
+        let mut sum = 0.0f64;
+        let until = std::time::Instant::now() + std::time::Duration::from_secs(3);
+        while std::time::Instant::now() < until {
+            feed.drain(|l, r| {
+                frames += l.len();
+                sum += l
+                    .iter()
+                    .chain(r)
+                    .map(|x| f64::from(*x) * f64::from(*x))
+                    .sum::<f64>();
+            });
+            std::thread::sleep(std::time::Duration::from_millis(20));
+        }
+        let rms = (sum / (2 * frames.max(1)) as f64).sqrt();
+        println!("captured {frames} frames, rms {rms:.4}");
+        assert!(frames as f64 > feed.sample_rate() * 2.0, "too few frames");
+        assert!(rms > 1e-4, "captured silence; is anything playing?");
+    }
 }
