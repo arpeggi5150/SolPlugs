@@ -149,13 +149,19 @@ fn install(release: bool) -> Result<(), String> {
     Ok(())
 }
 
+mod probe;
+
 fn main() -> ExitCode {
     let args: Vec<String> = std::env::args().skip(1).collect();
     let release = !args.iter().any(|a| a == "--debug");
     let res = match args.first().map(String::as_str) {
         Some("bundle") => bundle(release).map(|_| ()),
         Some("install") => install(release),
-        _ => Err("usage: cargo xtask <bundle|install> [--debug]".into()),
+        Some("probe-vst3") => match args.get(1) {
+            Some(path) => probe::run(std::path::Path::new(path)),
+            None => Err("usage: cargo xtask probe-vst3 <path to .vst3 binary>".into()),
+        },
+        _ => Err("usage: cargo xtask <bundle|install|probe-vst3 PATH> [--debug]".into()),
     };
     match res {
         Ok(()) => ExitCode::SUCCESS,

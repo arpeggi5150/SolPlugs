@@ -624,7 +624,7 @@ impl Drop for View {
 struct Factory;
 
 impl Class for Factory {
-    type Interfaces = (IPluginFactory2,);
+    type Interfaces = (IPluginFactory3,);
 }
 
 impl IPluginFactoryTrait for Factory {
@@ -696,6 +696,30 @@ impl IPluginFactory2Trait for Factory {
         copy_cstring(crate::VENDOR, &mut info.vendor);
         copy_cstring(crate::VERSION, &mut info.version);
         copy_cstring("VST 3.7", &mut info.sdkVersion);
+        kResultOk
+    }
+}
+
+impl IPluginFactory3Trait for Factory {
+    unsafe fn getClassInfoUnicode(&self, index: int32, info: *mut PClassInfoW) -> tresult {
+        if index != 0 || info.is_null() {
+            return kInvalidArgument;
+        }
+        // SAFETY: non-null, writable PClassInfoW from the host.
+        let info = unsafe { &mut *info };
+        info.cid = CID;
+        info.cardinality = PClassInfo_::ClassCardinality_::kManyInstances as int32;
+        copy_cstring("Audio Module Class", &mut info.category);
+        copy_wstring(crate::NAME, &mut info.name);
+        info.classFlags = 0;
+        copy_cstring("Fx|Analyzer", &mut info.subCategories);
+        copy_wstring(crate::VENDOR, &mut info.vendor);
+        copy_wstring(crate::VERSION, &mut info.version);
+        copy_wstring("VST 3.7", &mut info.sdkVersion);
+        kResultOk
+    }
+
+    unsafe fn setHostContext(&self, _context: *mut FUnknown) -> tresult {
         kResultOk
     }
 }

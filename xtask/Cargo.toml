@@ -6,6 +6,12 @@ license.workspace = true
 publish = false
 
 [dependencies]
+libloading = "0.8"
+vst3 = "0.3"
 
-[lints]
-workspace = true
+[lints.rust]
+# Only the VST3 probe (a tiny test host) uses unsafe.
+unsafe_code = "deny"
+
+[lints.clippy]
+dbg_macro = "warn"
