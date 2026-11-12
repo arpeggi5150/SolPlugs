@@ -110,6 +110,13 @@ fn agent() -> ureq::Agent {
     ureq::Agent::config_builder()
         .timeout_global(Some(Duration::from_secs(15)))
         .user_agent("SolPlugs-Reference/0.1")
+        // ureq defaults to Rustls and panics on https if that feature is off; we build
+        // with native-tls only, so name it explicitly.
+        .tls_config(
+            ureq::tls::TlsConfig::builder()
+                .provider(ureq::tls::TlsProvider::NativeTls)
+                .build(),
+        )
         .build()
         .into()
 }
@@ -206,6 +213,14 @@ pub fn fetch_preview(t: &Track) -> Result<Audio, DeezerError> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn agent_uses_the_compiled_tls_provider() {
+        assert_eq!(
+            agent().config().tls_config().provider(),
+            ureq::tls::TlsProvider::NativeTls
+        );
+    }
 
     #[test]
     fn parses_search_results_and_skips_tracks_without_previews() {

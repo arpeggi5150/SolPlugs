@@ -195,6 +195,13 @@ fn status_bar(ui: &mut Ui, s: &AppState, pal: &Palette, cmds: &mut Vec<Command>)
 mod tests {
     use super::*;
 
+    /// egui ships no fonts unless its `default_fonts` feature is on; without it every
+    /// glyph renders as a box.
+    #[test]
+    fn egui_has_fonts() {
+        assert!(!egui::FontDefinitions::default().font_data.is_empty());
+    }
+
     /// Runs every view headless for a few frames, with and without data, to catch panics.
     #[test]
     fn every_view_draws_without_panicking() {
