@@ -1,0 +1,17 @@
+# Licence policy for `cargo deny check licenses`. SolPlugs ships under MIT OR Apache-2.0 and
+# takes no GPL/AGPL/LGPL code. Everything below is permissive.
+[licenses]
+allow = [
+    "MIT",
+    "Apache-2.0",
+    "Apache-2.0 WITH LLVM-exception",
+    "BSD-2-Clause",
+    "BSD-3-Clause",
+    "ISC",
+    "Zlib",
+    "CC0-1.0",
+    "BSL-1.0",            # clipboard-win (egui-baseview clipboard on Windows)
+    "Unicode-3.0",        # ICU data crates
+    "CDLA-Permissive-2.0", # webpki-root-certs (ureq)
+]
+confidence-threshold = 0.9
