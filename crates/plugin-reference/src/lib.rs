@@ -12,8 +12,10 @@
     clippy::unreachable
 )]
 
+#[cfg(feature = "clap")]
 pub mod clap;
 pub mod editor;
+#[cfg(feature = "vst3")]
 pub mod vst3;
 
 /// Display name.

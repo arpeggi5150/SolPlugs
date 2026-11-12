@@ -58,22 +58,37 @@ fn copy(from: &Path, to: &Path) -> Result<(), String> {
         .map_err(|e| format!("copy {} -> {}: {e}", from.display(), to.display()))
 }
 
-fn bundle(release: bool) -> Result<(PathBuf, PathBuf), String> {
+/// Builds the plugin with only `feature` enabled and returns the built binary, copied
+/// out of the target dir so the next build can't overwrite it.
+fn build_format(release: bool, feature: &str) -> Result<PathBuf, String> {
     let mut cmd = Command::new(std::env::var("CARGO").unwrap_or_else(|_| "cargo".into()));
-    cmd.current_dir(root()).args(["build", "-p", PACKAGE]);
+    cmd.current_dir(root()).args([
+        "build",
+        "-p",
+        PACKAGE,
+        "--no-default-features",
+        "--features",
+        feature,
+    ]);
     if release {
         cmd.arg("--release");
     }
     let status = cmd.status().map_err(|e| format!("cargo build: {e}"))?;
     if !status.success() {
-        return Err("cargo build failed".into());
+        return Err(format!("cargo build ({feature}) failed"));
     }
     let target = std::env::var_os("CARGO_TARGET_DIR")
         .map(PathBuf::from)
         .unwrap_or_else(|| root().join("target"));
-    let built = target
-        .join(if release { "release" } else { "debug" })
-        .join(dll_name());
+    let profile = target.join(if release { "release" } else { "debug" });
+    let out = profile.join(format!("{feature}-{}", dll_name()));
+    copy(&profile.join(dll_name()), &out)?;
+    Ok(out)
+}
+
+fn bundle(release: bool) -> Result<(PathBuf, PathBuf), String> {
+    let vst3_built = build_format(release, "vst3")?;
+    let clap_built = build_format(release, "clap")?;
     let dist = root().join("dist");
     let ext = if cfg!(windows) {
         "vst3"
@@ -92,11 +107,11 @@ fn bundle(release: bool) -> Result<(PathBuf, PathBuf), String> {
         std::fs::remove_dir_all(&vst3).map_err(|e| format!("clean {}: {e}", vst3.display()))?;
     }
     copy(
-        &built,
+        &vst3_built,
         &vst3.join("Contents").join(vst3_arch_dir()).join(vst3_bin),
     )?;
     let clap = dist.join(format!("{NAME}.clap"));
-    copy(&built, &clap)?;
+    copy(&clap_built, &clap)?;
     println!("bundled:\n  {}\n  {}", vst3.display(), clap.display());
     Ok((vst3, clap))
 }
