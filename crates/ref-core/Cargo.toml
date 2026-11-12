@@ -1,0 +1,17 @@
+[package]
+name = "solplugs-ref-core"
+description = "Analysis core for the SolPlugs reference analyzer: loudness, peaks, stereo, tonal balance, parts, group stats and A/B switching."
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+rust-version.workspace = true
+
+[dependencies]
+serde.workspace = true
+rustfft.workspace = true
+
+[dev-dependencies]
+serde_json.workspace = true
+
+[lints]
+workspace = true
