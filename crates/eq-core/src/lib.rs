@@ -98,7 +98,10 @@ impl StyleSettings {
     /// Defaults for `style`.
     pub fn defaults(style: Style) -> Self {
         Self {
-            common: Common::default(),
+            common: Common {
+                colour: style.coloured(),
+                ..Common::default()
+            },
             knobs: style.defaults(),
         }
     }
