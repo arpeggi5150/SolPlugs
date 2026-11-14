@@ -1,0 +1,15 @@
+[package]
+name = "solplugs-comp-core"
+description = "SolPlugs Compressor DSP: five compressor circuits (VCA, Opto, FET, Vari-Mu, Clean), oversampled colour, sidechain, lookahead, parallel mix and level meters. Clean-room, no dependencies."
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+rust-version.workspace = true
+
+[dependencies]
+
+[lints]
+workspace = true
+
+[dev-dependencies]
+hound = "3"
