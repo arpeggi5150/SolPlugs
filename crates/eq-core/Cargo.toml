@@ -1,0 +1,18 @@
+[package]
+name = "solplugs-eq-core"
+description = "SolPlugs EQ DSP: eight EQ styles (Pultec, API, SSL, Neve, Clean, Massive, Maag, Curve), oversampled colour, dynamic and mid/side bands, linear phase, parallel mix and level meters. Clean-room."
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+rust-version.workspace = true
+
+[dependencies]
+# Shared with the compressor: oversampler, saturation, smoothing, delay lines, AvgPeak.
+solplugs-comp-core.workspace = true
+rustfft.workspace = true
+
+[lints]
+workspace = true
+
+[dev-dependencies]
+hound = "3"
