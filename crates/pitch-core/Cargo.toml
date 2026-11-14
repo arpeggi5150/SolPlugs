@@ -1,0 +1,17 @@
+[package]
+name = "solplugs-pitch-core"
+description = "SolPlugs Pitch DSP: McLeod pitch detection, formant-preserving PSOLA shifting, scale correction and note analysis."
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+rust-version.workspace = true
+
+[dependencies]
+rustfft.workspace = true
+serde.workspace = true
+
+[dev-dependencies]
+hound = "3"
+
+[lints]
+workspace = true
