@@ -1,7 +1,7 @@
 //! Automatic correction: turns the detected pitch track into a target pitch, frame by frame.
 //!
 //! The detected pitch `m` (MIDI, fractional) is split into a slow centre (a two-pole
-//! low-pass, ~2.5 Hz) and the vibrato around it, `v = m - centre`. The note is chosen from
+//! low-pass, ~1.5 Hz, which follows fast when the singer moves to another note) and the vibrato around it, `v = m - centre`. The note is chosen from
 //! the centre with hysteresis, so vibrato across a note boundary never flips notes. The
 //! correction `note - centre` is smoothed with the retune time constant and applied to the
 //! centre, so vibrato survives correction untouched (scaled by the vibrato control). At
@@ -41,7 +41,14 @@ const VIBRATO_KEEP_MS: f32 = 20.0;
 /// How far (semitones) past the midpoint the centre must move before the note switches.
 const HYSTERESIS: f32 = 0.15;
 /// Centre low-pass cutoff, Hz.
-const CENTRE_HZ: f32 = 2.5;
+const CENTRE_HZ: f32 = 1.5;
+/// Vibrato swings through the centre at least every half cycle (about 60-100 ms at
+/// 5-8 Hz). Pitch that stays on one side longer than this, or strays further than
+/// [`MOVE_ST`], is the singer moving to another note, and the centre follows it fast.
+const ONE_SIDE_MS: f32 = 90.0;
+const MOVE_ST: f32 = 1.0;
+/// How fast the centre follows a note move.
+const FOLLOW_HZ: f32 = 15.0;
 /// Humanize: extra time constant at full humanize on a fully sustained note.
 const HUMANIZE_MS: f32 = 350.0;
 /// Humanize: how long a note must be held to count as fully sustained.
@@ -65,6 +72,9 @@ pub struct Corrected {
 pub struct Corrector {
     dt_ms: f32,
     centre_a: f32,
+    follow_a: f32,
+    side: f32,
+    side_ms: f32,
     c1: f32,
     c2: f32,
     note: Option<i32>,
@@ -80,6 +90,9 @@ impl Corrector {
         Self {
             dt_ms: frame_ms,
             centre_a: a,
+            follow_a: 1.0 - (-std::f32::consts::TAU * FOLLOW_HZ * frame_ms / 1000.0).exp(),
+            side: 0.0,
+            side_ms: 0.0,
             c1: 0.0,
             c2: 0.0,
             note: None,
@@ -112,9 +125,26 @@ impl Corrector {
             self.note = None;
             self.smoothed = 0.0;
             self.voiced = true;
+            self.side = 0.0;
+            self.side_ms = 0.0;
         }
-        self.c1 += self.centre_a * (m - self.c1);
-        self.c2 += self.centre_a * (self.c1 - self.c2);
+        // Which side of the centre the pitch is on, and for how long.
+        let d = m - self.c2;
+        let side = if d.abs() < 0.02 {
+            self.side
+        } else {
+            d.signum()
+        };
+        if side == self.side {
+            self.side_ms += self.dt_ms;
+        } else {
+            self.side = side;
+            self.side_ms = 0.0;
+        }
+        let moving = self.side_ms > ONE_SIDE_MS || d.abs() > MOVE_ST;
+        let a = if moving { self.follow_a } else { self.centre_a };
+        self.c1 += a * (m - self.c1);
+        self.c2 += a * (self.c1 - self.c2);
         let centre = self.c2;
         let vib = m - centre;
 

@@ -153,3 +153,37 @@ pub fn new_clicks(x: &[f32], y: &[f32], sr: f32) -> f32 {
     }
     worst
 }
+
+/// The `n` worst new clicks in `y` (see [`new_clicks`]), at least 50 ms apart:
+/// (time in s, score, level of `y` around it in dBFS) so a report can say where to
+/// listen and whether it is loud enough to hear.
+pub fn click_events(x: &[f32], y: &[f32], sr: f32, n: usize) -> Vec<(f32, f32, f32)> {
+    let sx = burst_scores(x, sr);
+    let sy = burst_scores(y, sr);
+    let ms = (sr * 0.001) as usize;
+    let mut s: Vec<(usize, f32)> = (0..sy.len().min(sx.len()))
+        .map(|i| {
+            let lo = i.saturating_sub(6);
+            let hi = (i + 7).min(sx.len());
+            (i, sy[i] / sx[lo..hi].iter().copied().fold(1f32, f32::max))
+        })
+        .collect();
+    s.sort_by(|a, b| b.1.total_cmp(&a.1));
+    let mut out: Vec<(f32, f32, f32)> = Vec::new();
+    for (i, score) in s {
+        if out.len() == n || score < 2.0 {
+            break;
+        }
+        let t = i as f32 / 1000.0;
+        if out.iter().any(|o| (o.0 - t).abs() < 0.05) {
+            continue;
+        }
+        let (a, b) = (
+            (i * ms).saturating_sub(10 * ms),
+            ((i + 10) * ms).min(y.len()),
+        );
+        let rms = (y[a..b].iter().map(|v| v * v).sum::<f32>() / (b - a).max(1) as f32).sqrt();
+        out.push((t, score, 20.0 * rms.max(1e-9).log10()));
+    }
+    out
+}

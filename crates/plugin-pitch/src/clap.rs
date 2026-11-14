@@ -14,8 +14,8 @@ use clack_extensions::gui::{
 };
 use clack_extensions::latency::{PluginLatency, PluginLatencyImpl};
 use clack_extensions::params::{
-    HostParams, ParamDisplayWriter, ParamInfo, ParamInfoFlags, ParamInfoWriter,
-    ParamRescanFlags, PluginAudioProcessorParams, PluginMainThreadParams, PluginParams,
+    HostParams, ParamDisplayWriter, ParamInfo, ParamInfoFlags, ParamInfoWriter, ParamRescanFlags,
+    PluginAudioProcessorParams, PluginMainThreadParams, PluginParams,
 };
 use clack_extensions::state::{PluginState, PluginStateImpl};
 use clack_plugin::events::Pckn;
