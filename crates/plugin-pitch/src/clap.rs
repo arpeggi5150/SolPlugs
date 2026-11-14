@@ -14,8 +14,8 @@ use clack_extensions::gui::{
 };
 use clack_extensions::latency::{PluginLatency, PluginLatencyImpl};
 use clack_extensions::params::{
-    ParamDisplayWriter, ParamInfo, ParamInfoFlags, ParamInfoWriter, PluginAudioProcessorParams,
-    PluginMainThreadParams, PluginParams,
+    HostParams, ParamDisplayWriter, ParamInfo, ParamInfoFlags, ParamInfoWriter,
+    ParamRescanFlags, PluginAudioProcessorParams, PluginMainThreadParams, PluginParams,
 };
 use clack_extensions::state::{PluginState, PluginStateImpl};
 use clack_plugin::events::Pckn;
@@ -47,6 +47,8 @@ impl PluginShared<'_> for Shared {}
 /// Main-thread state: the editor window.
 pub struct MainThread<'a> {
     shared: &'a Shared,
+    host: HostMainThreadHandle<'a>,
+    host_params: Option<HostParams>,
     window: RefCell<Option<egui_baseview::baseview::Window>>,
     scale: Cell<f64>,
     size: Cell<(f64, f64)>,
@@ -107,11 +109,13 @@ impl DefaultPluginFactory for PitchClap {
     }
 
     fn new_main_thread<'a>(
-        _host: HostMainThreadHandle<'a>,
+        host: HostMainThreadHandle<'a>,
         shared: &'a Shared,
     ) -> Result<MainThread<'a>, PluginError> {
         Ok(MainThread {
             shared,
+            host_params: host.get_extension(),
+            host,
             window: RefCell::new(None),
             scale: Cell::new(1.0),
             size: Cell::new(DEFAULT_SIZE),
@@ -341,6 +345,10 @@ impl PluginStateImpl for MainThread<'_> {
             .read_to_end(&mut buf)
             .map_err(|_| PluginError::Message("couldn't read state"))?;
         if self.shared.engine.load_state(&buf) {
+            // The values changed under the host: ask it to read them again.
+            if let Some(hp) = &self.host_params {
+                hp.rescan(&self.host, ParamRescanFlags::VALUES);
+            }
             Ok(())
         } else {
             Err(PluginError::Message("not a SolPlugs Pitch state"))

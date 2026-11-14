@@ -237,6 +237,14 @@ impl IComponentTrait for Pitch {
             }
         }
         if self.engine.load_state(&data) {
+            if let Ok(h) = self.handler.lock()
+                && let Some(HostHandler(h)) = h.as_ref()
+            {
+                // SAFETY: see HostHandler: setState runs on the host's UI thread.
+                unsafe {
+                    h.restartComponent(RestartFlags_::kParamValuesChanged);
+                }
+            }
             kResultOk
         } else {
             kResultFalse
