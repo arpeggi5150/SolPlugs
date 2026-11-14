@@ -1,0 +1,17 @@
+[package]
+name = "solplugs-delay-core"
+description = "SolPlugs Delay DSP: three delay versions (Clean, Tape, Analog) with tempo-sync, feedback-loop filters, ping-pong, reverse, ducking, LoFi and Analog colour. Clean-room."
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+rust-version.workspace = true
+
+[dependencies]
+# Shared with the compressor: smoothing, AvgPeak and dB helpers.
+solplugs-comp-core.workspace = true
+
+[lints]
+workspace = true
+
+[dev-dependencies]
+hound = "3"

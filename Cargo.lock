@@ -2311,6 +2311,14 @@ dependencies = [
 ]
 
 [[package]]
+name = "solplugs-delay-core"
+version = "0.1.0"
+dependencies = [
+ "hound",
+ "solplugs-comp-core",
+]
+
+[[package]]
 name = "solplugs-eq"
 version = "0.1.0"
 dependencies = [
