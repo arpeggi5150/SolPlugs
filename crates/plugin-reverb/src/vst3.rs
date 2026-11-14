@@ -442,7 +442,9 @@ impl IAudioProcessorTrait for Verb {
     }
 
     unsafe fn getTailSamples(&self) -> uint32 {
-        self.engine.latency()
+        // The tail (and a frozen one forever) rings on after the input stops: the host
+        // must keep calling process.
+        kInfiniteTail
     }
 }
 
