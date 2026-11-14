@@ -47,6 +47,8 @@ pub struct Rig {
     states: Vec<TrackState>,
     rate: f32,
     pub device: String,
+    /// The output asked for (`None`: the Windows default).
+    pub wanted: Option<String>,
     pub buffer_frames: u32,
     activity: mpsc::Sender<Activity>,
 }
@@ -68,14 +70,47 @@ pub fn output_name() -> Option<String> {
     d.description().ok().map(|x| x.name().to_owned())
 }
 
+/// Every audio output on this PC, by name (a PC with two interfaces lists both, so one can be picked).
+pub fn outputs() -> Vec<String> {
+    let Ok(devs) = cpal::default_host().output_devices() else {
+        return Vec::new();
+    };
+    let mut out: Vec<String> = devs
+        .filter_map(|d| d.description().ok().map(|x| x.name().to_owned()))
+        .collect();
+    out.dedup();
+    out
+}
+
+/// The output named `want` (`None` or not found: the Windows default). Returns the device and
+/// whether the wanted one was found.
+fn pick_output(want: Option<&str>) -> Option<(cpal::Device, bool)> {
+    let host = cpal::default_host();
+    if let Some(w) = want.filter(|w| !w.is_empty())
+        && let Ok(mut devs) = host.output_devices()
+        && let Some(d) = devs.find(|d| d.description().ok().is_some_and(|x| x.name() == w))
+    {
+        return Some((d, true));
+    }
+    host.default_output_device()
+        .map(|d| (d, want.is_none_or(str::is_empty)))
+}
+
 impl Rig {
     /// Opens the default audio output with a small buffer (`want_frames`, else the device's
     /// default) and starts silent. `activity` gets each note played.
-    pub fn open(want_frames: u32, activity: mpsc::Sender<Activity>) -> Result<Rig, String> {
-        let host = cpal::default_host();
-        let device = host
-            .default_output_device()
-            .ok_or("No audio output device.")?;
+    pub fn open(
+        want_frames: u32,
+        output: Option<&str>,
+        activity: mpsc::Sender<Activity>,
+    ) -> Result<Rig, String> {
+        let (device, found) = pick_output(output).ok_or("No audio output device.")?;
+        if !found {
+            log::warn!(
+                "audio output {:?} not found: playing on the default",
+                output.unwrap_or("")
+            );
+        }
         let name = device
             .description()
             .ok()
@@ -149,6 +184,7 @@ impl Rig {
             states: vec![TrackState::default(); MAX_TRACKS],
             rate,
             device: name,
+            wanted: output.filter(|w| !w.is_empty()).map(str::to_owned),
             buffer_frames: buffer,
             activity,
         })

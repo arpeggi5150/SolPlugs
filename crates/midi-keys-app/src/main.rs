@@ -1,8 +1,10 @@
 //! `solplug-midi-keys`: SolPlugs MIDI Keys as a program, driven by Command Center's MIDI module.
 //!
 //! JSON lines. Each line on stdin is a request; each answer is one line on stdout:
-//! - `{"op":"list"}` → `{"ok":true,"inputs":[...],"output":"...","synths":[{id,name,vendor,kind}]}`
-//! - `{"op":"apply","tracks":[{input,channel,synth,volume,mute}, ...],"buffer":128}` → the tracks' states
+//! - `{"op":"list"}` → `{"ok":true,"inputs":[...],"output":"...","outputs":[...],"synths":[{id,name,vendor,kind}]}`
+//! - `{"op":"apply","tracks":[{input,channel,synth,volume,mute}, ...],"buffer":128,"output":"name"}` → the
+//!   tracks' states. `output` picks the audio output by name (none: the Windows default); while it works,
+//!   `{"ev":"step","step":"audio"|"midi"}` says what it is opening, so a device that hangs can be named.
 //! - `{"op":"note","track":0,"note":60,"velocity":100,"on":true}` (the module's test keys)
 //! - `{"op":"panic"}` all notes off; `{"op":"stop"}` ends the program (closing stdin does too).
 //!
@@ -52,7 +54,7 @@ fn main() {
         let op = req.get("op").and_then(Value::as_str).unwrap_or("");
         let answer = match op {
             "list" => {
-                json!({ "ok": true, "inputs": devices::midi_inputs(), "output": devices::output_name(), "synths": synth_list() })
+                json!({ "ok": true, "inputs": devices::midi_inputs(), "output": devices::output_name(), "outputs": devices::outputs(), "synths": synth_list() })
             }
             "apply" => {
                 let tracks: Vec<TrackCfg> = req
@@ -65,8 +67,19 @@ fn main() {
                     .and_then(Value::as_u64)
                     .and_then(|b| u32::try_from(b).ok())
                     .unwrap_or(128);
+                let output = req
+                    .get("output")
+                    .and_then(Value::as_str)
+                    .filter(|o| !o.is_empty())
+                    .map(str::to_owned);
+                // Another output than the open one: the rig is opened again on it (Command Center stops
+                // the program for a new buffer size).
+                if rig.as_ref().is_some_and(|r| r.wanted != output) {
+                    rig = None;
+                }
                 if rig.is_none() {
-                    match devices::Rig::open(buffer, act_tx.clone()) {
+                    say(&json!({ "ev": "step", "id": id, "step": "audio", "output": output }));
+                    match devices::Rig::open(buffer, output.as_deref(), act_tx.clone()) {
                         Ok(r) => rig = Some(r),
                         Err(e) => {
                             say(&json!({ "id": id, "ok": false, "error": e }));
@@ -76,6 +89,7 @@ fn main() {
                 }
                 match rig.as_mut() {
                     Some(r) => {
+                        say(&json!({ "ev": "step", "id": id, "step": "midi" }));
                         let states = r.apply(&tracks);
                         json!({ "ok": true, "tracks": states, "output": r.device, "buffer": r.buffer_frames, "latency_ms": r.latency_ms(), "inputs_connected": r.connected() })
                     }
