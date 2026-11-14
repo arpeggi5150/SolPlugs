@@ -2311,6 +2311,19 @@ dependencies = [
 ]
 
 [[package]]
+name = "solplugs-delay-app"
+version = "0.1.0"
+dependencies = [
+ "egui",
+ "hound",
+ "log",
+ "rtrb",
+ "serde",
+ "serde_json",
+ "solplugs-delay-core",
+]
+
+[[package]]
 name = "solplugs-delay-core"
 version = "0.1.0"
 dependencies = [
