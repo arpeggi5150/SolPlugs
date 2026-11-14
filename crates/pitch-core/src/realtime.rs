@@ -21,8 +21,6 @@ use crate::scale::freq_to_midi;
 
 /// Maximum channels processed (shared marks, per-channel grains).
 pub const MAX_CHANNELS: usize = 2;
-const RING: usize = 1 << 16;
-const MASK: usize = RING - 1;
 const FRAMES: usize = 512;
 const MARKS: usize = 1024;
 
@@ -183,6 +181,7 @@ struct Mark {
 /// The real-time corrector for up to [`MAX_CHANNELS`] channels.
 pub struct Realtime {
     cfg: Config,
+    mask: usize,
     hop: usize,
     latency: i64,
     mpm: Mpm,
@@ -222,14 +221,17 @@ impl Realtime {
         let hop = cfg.hop();
         let win = cfg.window();
         let latency = cfg.latency() as i64;
+        // History: the latency, a grain either side, and a hop of input in flight.
+        let ring = (2 * cfg.latency() + 4 * cfg.max_period() + 4 * hop).next_power_of_two();
         Self {
+            mask: ring - 1,
             cfg,
             hop,
             latency,
             mpm: Mpm::new(win, cfg.min_period(), cfg.max_period()),
             corrector: Corrector::new(hop as f32 * 1000.0 / cfg.sample_rate),
-            input: std::array::from_fn(|_| vec![0.0; RING]),
-            mono: vec![0.0; RING],
+            input: std::array::from_fn(|_| vec![0.0; ring]),
+            mono: vec![0.0; ring],
             window_buf: vec![0.0; win],
             hp_x: 0.0,
             hp_y: 0.0,
@@ -243,8 +245,8 @@ impl Realtime {
             frame_count: 0,
             marks: vec![Mark::default(); MARKS],
             mark_count: 0,
-            acc: std::array::from_fn(|_| vec![0.0; RING]),
-            wsum: vec![0.0; RING],
+            acc: std::array::from_fn(|_| vec![0.0; ring]),
+            wsum: vec![0.0; ring],
             next_out: 0,
             last_out: -1,
             synced: true,
@@ -264,12 +266,28 @@ impl Realtime {
         self.latency as usize
     }
 
-    /// Clears all state (silence in, silence out), keeping the configuration.
+    /// Clears all state (silence in, silence out), keeping the configuration and the
+    /// bypass state. Never allocates, so it is safe on the audio thread.
     pub fn reset(&mut self) {
-        let cfg = self.cfg;
-        let wet = self.wet;
-        *self = Self::new(cfg);
-        self.wet = wet;
+        for b in self.input.iter_mut().chain(self.acc.iter_mut()) {
+            b.fill(0.0);
+        }
+        self.mono.fill(0.0);
+        self.wsum.fill(0.0);
+        self.hp_x = 0.0;
+        self.hp_y = 0.0;
+        self.now = 0;
+        self.next_frame_end = self.window_buf.len() as i64;
+        self.raw = [Detection::default(); 3];
+        self.raw_voiced = [false; 3];
+        self.voiced = false;
+        self.frame_count = 0;
+        self.mark_count = 0;
+        self.corrector.reset();
+        self.next_out = 0;
+        self.last_out = -1;
+        self.synced = true;
+        self.emitted = -self.latency;
     }
 
     /// Processes `channels` in place (1 or 2 used; equal lengths). `on_frame` receives each
@@ -302,7 +320,7 @@ impl Realtime {
     fn push_input(&mut self, channels: &[&mut [f32]], nch: usize, off: usize, k: usize) {
         let inv = 1.0 / nch as f32;
         for i in 0..k {
-            let t = (self.now as usize + i) & MASK;
+            let t = (self.now as usize + i) & self.mask;
             let mut sum = 0.0;
             for c in 0..nch {
                 let x = channels[c][off + i];
@@ -325,7 +343,7 @@ impl Realtime {
         let win = self.window_buf.len();
         let start = end - win as i64;
         for (i, w) in self.window_buf.iter_mut().enumerate() {
-            *w = self.mono[((start + i as i64) as usize) & MASK];
+            *w = self.mono[((start + i as i64) as usize) & self.mask];
         }
         let hint = self.raw_voiced[2].then_some(self.raw[2].period);
         let d = self.mpm.detect_near(&self.window_buf, hint);
@@ -462,7 +480,12 @@ impl Realtime {
     }
 
     fn align(&self, prev: i64, guess: i64, spacing: usize) -> i64 {
-        align_mark(|t| self.mono[(t as usize) & MASK], prev, guess, spacing)
+        align_mark(
+            |t| self.mono[(t as usize) & self.mask],
+            prev,
+            guess,
+            spacing,
+        )
     }
 
     /// Index of the analysis mark nearest to `t` (searching back from the newest).
@@ -551,7 +574,14 @@ impl Realtime {
                 } else {
                     None
                 };
-                add_grain(&grain, &self.input[c], MASK, &mut self.acc[c], MASK, ws);
+                add_grain(
+                    &grain,
+                    &self.input[c],
+                    self.mask,
+                    &mut self.acc[c],
+                    self.mask,
+                    ws,
+                );
             }
             self.last_out = o;
             if m.voiced {
@@ -578,7 +608,7 @@ impl Realtime {
         let target = if params.bypass { 0.0 } else { 1.0 };
         for i in 0..k {
             let t = start + i as i64;
-            let idx = (t as usize) & MASK;
+            let idx = (t as usize) & self.mask;
             if self.wet != target {
                 self.wet = if self.wet < target {
                     (self.wet + self.fade_step).min(target)
