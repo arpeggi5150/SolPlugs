@@ -2311,6 +2311,57 @@ dependencies = [
 ]
 
 [[package]]
+name = "solplugs-delay"
+version = "0.1.0"
+dependencies = [
+ "clack-extensions",
+ "clack-plugin",
+ "egui",
+ "egui-baseview",
+ "hound",
+ "log",
+ "raw-window-handle",
+ "solplugs-delay-app",
+ "solplugs-delay-core",
+ "vst3",
+]
+
+[[package]]
+name = "solplugs-delay-app"
+version = "0.1.0"
+dependencies = [
+ "egui",
+ "hound",
+ "log",
+ "rtrb",
+ "serde",
+ "serde_json",
+ "solplugs-delay-core",
+]
+
+[[package]]
+name = "solplugs-delay-core"
+version = "0.1.0"
+dependencies = [
+ "hound",
+ "solplugs-comp-core",
+]
+
+[[package]]
+name = "solplugs-delay-standalone"
+version = "0.1.0"
+dependencies = [
+ "cpal",
+ "eframe",
+ "egui",
+ "hound",
+ "log",
+ "rtrb",
+ "solplugs-delay-app",
+ "solplugs-delay-core",
+]
+
+[[package]]
 name = "solplugs-eq"
 version = "0.1.0"
 dependencies = [

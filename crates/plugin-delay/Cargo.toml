@@ -1,0 +1,43 @@
+[package]
+name = "solplugs-delay"
+description = "SolPlugs Delay: three delay versions (Clean, Tape, Analog) as a VST3 and CLAP plugin."
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+rust-version.workspace = true
+
+[lib]
+crate-type = ["cdylib", "rlib"]
+
+[dependencies]
+solplugs-delay-app.workspace = true
+solplugs-delay-core.workspace = true
+log.workspace = true
+egui = { version = "0.37", features = ["default_fonts"] }
+egui-baseview = { version = "0.9", default-features = false, features = ["opengl", "log"] }
+raw-window-handle = "0.6"
+clack-plugin = { version = "0.2", optional = true }
+clack-extensions = { version = "0.2", optional = true, features = ["clack-plugin", "audio-ports", "gui", "latency", "state", "params", "raw-window-handle_06"] }
+vst3 = { version = "0.3", optional = true }
+
+# Each shipped binary carries one format's entry point: a host's VST3 scanner skips a
+# binary that also exports `clap_entry`. Both are on by default for checks and tests;
+# `cargo xtask bundle` builds each format separately.
+[features]
+default = ["clap", "vst3"]
+clap = ["dep:clack-plugin", "dep:clack-extensions"]
+vst3 = ["dep:vst3"]
+
+# The plugin-format glue is FFI. Unsafe code is denied crate-wide and allowed only in the
+# VST3 module and the editor's parent-window handle, each block with a SAFETY comment.
+[lints.rust]
+unsafe_code = "deny"
+
+[lints.clippy]
+cognitive_complexity = "deny"
+dbg_macro = "warn"
+too_many_arguments = "deny"
+needless_range_loop = "allow"
+
+[dev-dependencies]
+hound = "3"
