@@ -2289,7 +2289,9 @@ dependencies = [
  "egui",
  "hound",
  "log",
+ "rtrb",
  "solplugs-comp-app",
+ "solplugs-comp-core",
 ]
 
 [[package]]
