@@ -47,13 +47,13 @@ pub fn info_line(v: Version) -> &'static str {
             "Clean: modern digital reverb, clear and honest, no colour. Styled after no hardware: the bar is the big modern reverbs. A smooth, dense tail that stays out of the way. Best on vocals, acoustic instruments and anything that must stay clear."
         }
         Version::Hall => {
-            "Hall: a big concert hall with a long, smooth, dark tail. Styled after the Lexicon 480L-era 80s digital rack halls: lush movement inside the tail, a softened top. Best on vocals, strings, pads and ballads."
+            "Hall: a big concert hall with a long, smooth, dark tail. Styled after the classic 80s digital rack halls: lush movement inside the tail, a softened top. Best on vocals, strings, pads and ballads."
         }
         Version::Room => {
             "Room: a small studio room, short and natural. Styled after the studio room units: strong early reflections that tell the ear the size, then a quick dense tail. Best on drums, guitars and anything that needs to sound like it was played in a real space."
         }
         Version::Plate => {
-            "Plate: a big steel plate with pickups, bright and dense. Styled after the EMT 140 plate: no early echoes, instant thick shimmer. Best on vocals, snares and anything that should shine."
+            "Plate: a big steel plate with pickups, bright and dense. Styled after the classic studio steel plates: no early echoes, instant thick shimmer. Best on vocals, snares and anything that should shine."
         }
         Version::Spring => {
             "Spring: a tube-driven spring tank, splashy and bouncy. Styled after the spring reverbs built into guitar amps: every bounce drips and boings. Best on guitars, surf and dub, and lo-fi drums."
@@ -495,8 +495,14 @@ mod tests {
 
     #[test]
     fn info_lines_name_the_unit() {
-        assert!(info_line(Version::Hall).contains("480L"));
-        assert!(info_line(Version::Plate).contains("EMT 140"));
+        assert!(info_line(Version::Hall).contains("80s digital rack"));
+        assert!(info_line(Version::Plate).contains("steel plate"));
+        // Types only, never a product or brand name.
+        for v in Version::ALL {
+            for brand in ["Lexicon", "480L", "EMT"] {
+                assert!(!info_line(v).contains(brand), "{v:?}");
+            }
+        }
         assert!(info_line(Version::Clean).contains("no hardware"));
         for v in Version::ALL {
             assert!(info_line(v).contains("Best on"));
