@@ -526,21 +526,19 @@ fn waveform(
             x += 1.0;
         }
         p.text(
-            pos2(lane.right() - 4.0, lane.top() + 2.0),
-            Align2::RIGHT_TOP,
+            pos2(lane.left() + 4.0, mid),
+            Align2::LEFT_CENTER,
             ["L", "R"][ch],
             lane_font.clone(),
             pal.dim,
         );
     }
     let font = FontId::proportional(if small { 10.5 } else { 13.0 });
-    let t = p.text(
-        r.left_top() + vec2(8.0, 4.0),
-        Align2::LEFT_TOP,
-        title,
-        font,
-        colour,
-    );
+    // The title sits on its own chip so the waveform never runs through it.
+    let g = p.layout_no_wrap(title.to_owned(), font, colour);
+    let t = Rect::from_min_size(r.left_top() + vec2(8.0, 4.0), g.size());
+    p.rect_filled(t.expand(2.0), CornerRadius::same(4), pal.card);
+    p.galley(t.min, g, colour);
     let m = engine.meters();
     let lvl = if after { m.avg_after() } else { m.avg_before() };
     let badge = p.layout_no_wrap(

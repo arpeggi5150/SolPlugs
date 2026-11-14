@@ -284,9 +284,9 @@ fn frame(pl: &Plate<'_>, v: Version, lk: &Look) {
                 pl.font(15.0),
                 lk.ink,
             );
-            reel(pl, 60.0, 92.0, 30.0, lk);
-            reel(pl, 200.0, 92.0, 30.0, lk);
-            gold_nameplate(pl, pl.r(84.0, 120.0, 92.0, 22.0));
+            reel(pl, 72.0, 82.0, 25.0, lk);
+            reel(pl, 188.0, 82.0, 25.0, lk);
+            gold_nameplate(pl, pl.r(50.0, 113.0, 160.0, 26.0));
         }
         _ => {
             // Nameplate: ☀ SolPlugs and the type line.

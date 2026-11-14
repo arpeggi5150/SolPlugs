@@ -272,7 +272,9 @@ fn flags(id: Pid) -> ParamInfoFlags {
     match id.decode() {
         Some(Which::G(G::Bypass)) => f |= ParamInfoFlags::IS_BYPASS,
         Some(Which::G(G::Version)) => f |= ParamInfoFlags::IS_ENUM,
-        _ if id.info().is_some_and(|i| matches!(i.kind, Kind::Choice(_))) => f |= ParamInfoFlags::IS_ENUM,
+        _ if id.info().is_some_and(|i| matches!(i.kind, Kind::Choice(_))) => {
+            f |= ParamInfoFlags::IS_ENUM
+        }
         _ => {}
     }
     f

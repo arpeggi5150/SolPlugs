@@ -2348,6 +2348,20 @@ dependencies = [
 ]
 
 [[package]]
+name = "solplugs-delay-standalone"
+version = "0.1.0"
+dependencies = [
+ "cpal",
+ "eframe",
+ "egui",
+ "hound",
+ "log",
+ "rtrb",
+ "solplugs-delay-app",
+ "solplugs-delay-core",
+]
+
+[[package]]
 name = "solplugs-eq"
 version = "0.1.0"
 dependencies = [

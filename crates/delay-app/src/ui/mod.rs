@@ -300,10 +300,11 @@ fn footer(ui: &mut Ui, engine: &Engine, pal: &Palette) {
             value_box(ui, engine, c(Ctl::Duck), pal, None);
             dim(ui, "Rel");
             value_box(ui, engine, c(Ctl::DuckRelease), pal, None);
+            dim(ui, "Key");
             switch(ui, engine, c(Ctl::DuckSource), pal);
             let d = engine.meters().duck();
             ui.label(
-                RichText::new(format!("-{d:.1} dB"))
+                RichText::new(format!("GR {d:.1} dB"))
                     .monospace()
                     .color(if d > 0.3 { pal.gr } else { pal.dim }),
             );
