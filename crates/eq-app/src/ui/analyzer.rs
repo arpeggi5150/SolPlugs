@@ -146,7 +146,8 @@ impl Analyzer {
         let (k, v) = (lo..=hi)
             .map(|k| (k, db[k]))
             .fold((0, -140.0f32), |a, b| if b.1 > a.1 { b } else { a });
-        if v < -100.0 || k == 0 {
+        // Nothing there, or only the slope of something outside the window: no peak.
+        if v < -100.0 || k == 0 || k == lo || k == hi {
             return None;
         }
         // Parabolic interpolation between neighbouring bins.
@@ -158,5 +159,62 @@ impl Analyzer {
             0.0
         };
         Some((k as f32 + off) * bin_hz)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    #![allow(clippy::unwrap_used)]
+
+    use std::sync::Arc;
+
+    use solplugs_eq_core::Style;
+    use solplugs_eq_core::style::neve;
+
+    use super::*;
+    use crate::params::Pid;
+
+    fn feed(engine: &Arc<Engine>, an: &mut Analyzer, f: f32, amp: f32) {
+        let mut p = engine.processor(48_000.0, 512);
+        for block in 0..60 {
+            let mut l: Vec<f32> = (0..800)
+                .map(|i| {
+                    let t = (block * 800 + i) as f32 / 48_000.0;
+                    amp * (std::f32::consts::TAU * f * t).sin()
+                })
+                .collect();
+            let mut r = l.clone();
+            p.process(&mut [&mut l, &mut r]);
+            an.update(engine, 1.0 / 60.0);
+        }
+    }
+
+    /// Acceptance 6: the before/after curves show what the EQ does, at the right level.
+    #[test]
+    fn t06_analyzer_shows_the_level_and_the_eq() {
+        let engine = Arc::new(Engine::new());
+        engine.set_style(Style::Neve);
+        engine.set(Pid::k(Style::Neve, neve::MID_FREQ), 3.0); // 3.2 kHz
+        engine.set(Pid::k(Style::Neve, neve::MID_GAIN), 6.0);
+        let mut an = Analyzer::default();
+        feed(&engine, &mut an, 3200.0, 0.1);
+        let spread = 2f32.powf(1.0 / 48.0);
+        let before = an.level(Which::Before, 3200.0, spread);
+        let after = an.level(Which::After, 3200.0, spread);
+        // A sine at amplitude 0.1 is -20 dBFS.
+        assert!((before + 20.0).abs() < 0.5, "{before}");
+        let lift = after - before;
+        assert!((lift - 6.0).abs() < 1.0, "{lift}");
+    }
+
+    /// Acceptance 17: spectrum grab finds the peak a click lands near.
+    #[test]
+    fn t17_spectrum_grab_finds_the_peak() {
+        let engine = Arc::new(Engine::new());
+        let mut an = Analyzer::default();
+        feed(&engine, &mut an, 1234.0, 0.3);
+        let f = an.peak_near(Which::Before, 1150.0).unwrap();
+        assert!((f - 1234.0).abs() < 3.0, "{f}");
+        assert!(an.peak_near(Which::Before, 60.0).is_none());
     }
 }
