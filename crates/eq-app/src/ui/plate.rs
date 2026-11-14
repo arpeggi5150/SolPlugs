@@ -451,8 +451,8 @@ pub fn vu_meter(
     let cr = CornerRadius::same(plate.s(6.0) as u8);
     p.rect_filled(r.expand(plate.s(5.0)), cr, Color32::from_rgb(0x1C, 0x1A, 0x16));
     p.rect_filled(r, cr, face);
-    // Lamp glow from below.
-    p.circle_filled(
+    // Lamp glow from below, kept inside the window.
+    p.with_clip_rect(r.intersect(p.clip_rect())).circle_filled(
         plate.p(x + w * 0.5, y + h * 1.05),
         plate.s(h * 0.75),
         Color32::from_rgba_unmultiplied(255, 200, 110, 26),

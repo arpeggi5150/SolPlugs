@@ -111,7 +111,7 @@ fn header(ui: &mut Ui, p: &egui::Painter, r: Rect, engine: &Engine, local: &mut 
     );
     let name = engine.style().name().to_uppercase();
     let pill_font = FontId::proportional((r.height() * 0.48).max(11.0));
-    let g = p.layout_no_wrap(format!("Mode: {name}"), pill_font, pal.text);
+    let g = p.layout_no_wrap(format!("Style: {name}"), pill_font, pal.text);
     let toggle_w = 200.0f32.min(r.width() * 0.42);
     let pill = Rect::from_min_size(
         pos2(t2.right() + 10.0, r.center().y - g.size().y / 2.0 - 3.0),

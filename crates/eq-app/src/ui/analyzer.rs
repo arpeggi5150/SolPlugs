@@ -122,10 +122,12 @@ impl Analyzer {
     pub fn level(&self, which: Which, f: f32, spread: f32) -> f32 {
         let bin_hz = self.sr / N as f32;
         let db = &self.taps[which as usize].db;
-        let lo = ((f / spread) / bin_hz).floor().max(1.0) as usize;
-        let hi = ((f * spread) / bin_hz).ceil() as usize;
+        let lo = ((f / spread) / bin_hz).ceil().max(1.0) as usize;
+        let hi = ((f * spread) / bin_hz).floor() as usize;
         let hi = hi.min(db.len() - 1);
-        if lo >= hi {
+        // Fewer than three bins in this pixel's slice: the bins are wider than the
+        // pixels, so draw a smooth line through them instead of flat steps.
+        if hi < lo + 2 {
             // Between bins: interpolate.
             let x = (f / bin_hz).clamp(1.0, (db.len() - 2) as f32);
             let i = x.floor() as usize;

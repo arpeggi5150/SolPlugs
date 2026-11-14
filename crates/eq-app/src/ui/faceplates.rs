@@ -157,7 +157,8 @@ fn switch(
         lit,
         look.face,
         look.lit,
-        look.ink,
+        // Switch faces are dark on every panel.
+        Color32::from_gray(225),
     )
     .on_hover_text(format!("{caption}: {}\n{help}", if lit { on } else { off }));
     if resp.clicked() {
@@ -267,14 +268,14 @@ fn pultec_plate(pl: &mut Plate<'_>, e: &Engine, vu: [f32; 2]) {
     frame(pl, &look, 78.0);
     vu_meter(
         pl,
-        (180.0, 122.0, 180.0, 104.0),
+        (190.0, 116.0, 160.0, 86.0),
         vu_pos(vu[0].max(vu[1])),
         Color32::from_rgb(0xF4, 0xE3, 0xB8),
         ink,
         "OUTPUT",
     );
-    section(pl, (36.0, 246.0, 468.0, 130.0), "LOW FREQUENCY", ink);
-    section(pl, (36.0, 390.0, 468.0, 140.0), "HIGH FREQUENCY", ink);
+    section(pl, (36.0, 216.0, 468.0, 134.0), "LOW FREQUENCY", ink);
+    section(pl, (36.0, 360.0, 468.0, 140.0), "HIGH FREQUENCY", ink);
     use pultec::*;
     items(
         pl,
@@ -282,13 +283,13 @@ fn pultec_plate(pl: &mut Plate<'_>, e: &Engine, vu: [f32; 2]) {
         Style::Pultec,
         &look,
         &[
-            Item::K(LOW_BOOST, "BOOST", 120.0, 300.0),
-            Item::K(LOW_FREQ, "CPS", 270.0, 300.0),
-            Item::K(LOW_ATTEN, "ATTEN", 420.0, 300.0),
-            Item::K(HIGH_FREQ, "KCS", 90.0, 445.0),
-            Item::K(HIGH_BOOST, "BOOST", 200.0, 445.0),
-            Item::K(BANDWIDTH, "BANDWIDTH", 310.0, 445.0),
-            Item::K(HIGH_ATTEN, "ATTEN", 420.0, 445.0),
+            Item::K(LOW_BOOST, "BOOST", 120.0, 276.0),
+            Item::K(LOW_FREQ, "CPS", 270.0, 276.0),
+            Item::K(LOW_ATTEN, "ATTEN", 420.0, 276.0),
+            Item::K(HIGH_FREQ, "KCS", 90.0, 424.0),
+            Item::K(HIGH_BOOST, "BOOST", 200.0, 424.0),
+            Item::K(BANDWIDTH, "BANDWIDTH", 310.0, 424.0),
+            Item::K(HIGH_ATTEN, "ATTEN", 420.0, 424.0),
         ],
     );
     items(
@@ -296,9 +297,9 @@ fn pultec_plate(pl: &mut Plate<'_>, e: &Engine, vu: [f32; 2]) {
         e,
         Style::Pultec,
         &look,
-        &[Item::K(ATTEN_FREQ, "ATTEN SEL", 150.0, 572.0)],
+        &[Item::K(ATTEN_FREQ, "ATTEN SEL", 150.0, 546.0)],
     );
-    colour_switch(pl, e, Style::Pultec, &look, (390.0, 580.0));
+    colour_switch(pl, e, Style::Pultec, &look, (390.0, 556.0));
 }
 
 // ------------------------------------------------------------------ API: grey, 3 bands
@@ -507,7 +508,7 @@ fn massive_plate(pl: &mut Plate<'_>, e: &Engine, vu: [f32; 2]) {
         face: Color32::from_rgb(0x3A, 0x36, 0x30),
         title: "SolPlugs",
         model: "PASSIVE  MASTERING  EQ  ·  4-BAND",
-        r: 20.0,
+        r: 18.0,
         knob: KnobLook {
             body: Color32::from_rgb(0x24, 0x22, 0x20),
             cap: Color32::from_rgb(0x38, 0x35, 0x31),
@@ -525,16 +526,16 @@ fn massive_plate(pl: &mut Plate<'_>, e: &Engine, vu: [f32; 2]) {
     vu_meter(pl, (290.0, 112.0, 130.0, 72.0), vu_pos(vu[1]), face, ink, "R");
     for b in 0..4 {
         let x = 90.0 + b as f32 * 120.0;
-        section(pl, (x - 54.0, 200.0, 108.0, 316.0), ["1", "2", "3", "4"][b], ink);
+        section(pl, (x - 54.0, 196.0, 108.0, 324.0), ["1", "2", "3", "4"][b], ink);
         items(
             pl,
             e,
             Style::Massive,
             &look,
             &[
-                Item::K(massive::gain(b), "GAIN", x, 248.0),
-                Item::K(massive::freq(b), "FREQ", x, 340.0),
-                Item::K(massive::bandwidth(b), "WIDTH", x, 432.0),
+                Item::K(massive::gain(b), "GAIN", x, 240.0),
+                Item::K(massive::freq(b), "FREQ", x, 324.0),
+                Item::K(massive::bandwidth(b), "WIDTH", x, 408.0),
                 Item::S(massive::shelf(b), "", x, 494.0),
             ],
         );
@@ -626,7 +627,7 @@ fn curve_plate(pl: &mut Plate<'_>, e: &Engine, vu: [f32; 2]) {
         face: Color32::from_rgb(0x3A, 0x3C, 0x3E),
         title: "SolPlugs",
         model: "VALVE  CONSOLE  EQ  ·  BROADCAST",
-        r: 28.0,
+        r: 26.0,
         knob: KnobLook {
             body: Color32::from_rgb(0x20, 0x20, 0x22),
             cap: Color32::from_rgb(0x34, 0x34, 0x36),
@@ -649,7 +650,7 @@ fn curve_plate(pl: &mut Plate<'_>, e: &Engine, vu: [f32; 2]) {
     );
     use curve::*;
     for (i, t) in ["BASS", "MID", "TREBLE"].iter().enumerate() {
-        section(pl, (40.0 + i as f32 * 156.0, 226.0, 148.0, 300.0), t, ink);
+        section(pl, (40.0 + i as f32 * 156.0, 222.0, 148.0, 286.0), t, ink);
     }
     items(
         pl,
@@ -657,16 +658,16 @@ fn curve_plate(pl: &mut Plate<'_>, e: &Engine, vu: [f32; 2]) {
         Style::Curve,
         &look,
         &[
-            Item::K(BASS_GAIN, "GAIN", 114.0, 290.0),
-            Item::K(BASS_FREQ, "HZ", 114.0, 400.0),
-            Item::S(BASS_SHELF, "", 114.0, 496.0),
-            Item::K(MID_GAIN, "GAIN", 270.0, 290.0),
-            Item::K(MID_FREQ, "HZ", 270.0, 400.0),
-            Item::K(TREBLE_GAIN, "GAIN", 426.0, 290.0),
-            Item::K(TREBLE_FREQ, "HZ", 426.0, 400.0),
-            Item::S(TREBLE_SHELF, "", 426.0, 496.0),
-            Item::K(HPF, "HIGH PASS", 150.0, 568.0),
+            Item::K(BASS_GAIN, "GAIN", 114.0, 284.0),
+            Item::K(BASS_FREQ, "HZ", 114.0, 388.0),
+            Item::S(BASS_SHELF, "", 114.0, 486.0),
+            Item::K(MID_GAIN, "GAIN", 270.0, 284.0),
+            Item::K(MID_FREQ, "HZ", 270.0, 388.0),
+            Item::K(TREBLE_GAIN, "GAIN", 426.0, 284.0),
+            Item::K(TREBLE_FREQ, "HZ", 426.0, 388.0),
+            Item::S(TREBLE_SHELF, "", 426.0, 486.0),
+            Item::K(HPF, "HIGH PASS", 150.0, 548.0),
         ],
     );
-    colour_switch(pl, e, Style::Curve, &look, (390.0, 578.0));
+    colour_switch(pl, e, Style::Curve, &look, (390.0, 560.0));
 }

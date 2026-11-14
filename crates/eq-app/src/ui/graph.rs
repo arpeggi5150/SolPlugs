@@ -105,6 +105,14 @@ pub fn grid(p: &Painter, a: &Axes, pal: &Palette, labels: bool, db_labels: bool)
     }
     if labels {
         for (f, label, al) in [(F_LO, "20", Align2::LEFT_TOP), (F_HI, "20k", Align2::RIGHT_TOP)] {
+            // Only where it doesn't run into the nearest octave label.
+            let gap = OCTAVES
+                .iter()
+                .map(|(o, _)| (a.x(*o) - a.x(f)).abs())
+                .fold(f32::MAX, f32::min);
+            if gap < 34.0 {
+                continue;
+            }
             p.text(
                 pos2(a.x(f), r.bottom() + 3.0),
                 al,
