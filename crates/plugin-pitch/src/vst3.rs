@@ -236,8 +236,11 @@ impl IComponentTrait for Pitch {
                 return kResultFalse;
             }
         }
-        self.engine.load_state(&data);
-        kResultOk
+        if self.engine.load_state(&data) {
+            kResultOk
+        } else {
+            kResultFalse
+        }
     }
 
     unsafe fn getState(&self, state: *mut IBStream) -> tresult {
@@ -322,6 +325,7 @@ impl IAudioProcessorTrait for Pitch {
             .store(setup.sampleRate.to_bits(), Ordering::Relaxed);
         self.max_block
             .store(setup.maxSamplesPerBlock.max(1) as u32, Ordering::Relaxed);
+        self.engine.set_sample_rate(setup.sampleRate as f32);
         kResultOk
     }
 

@@ -340,8 +340,11 @@ impl PluginStateImpl for MainThread<'_> {
             .take(1 << 30)
             .read_to_end(&mut buf)
             .map_err(|_| PluginError::Message("couldn't read state"))?;
-        self.shared.engine.load_state(&buf);
-        Ok(())
+        if self.shared.engine.load_state(&buf) {
+            Ok(())
+        } else {
+            Err(PluginError::Message("not a SolPlugs Pitch state"))
+        }
     }
 }
 

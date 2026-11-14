@@ -376,7 +376,12 @@ impl Engine {
 
     /// Processing latency, samples (for the host).
     pub fn latency(&self) -> u32 {
-        self.shared.latency.load(Ordering::Relaxed)
+        // Before the first activation, report what the current range will need, so a
+        // host that asks early still compensates.
+        match self.shared.latency.load(Ordering::Relaxed) {
+            0 => self.latency_for(Range::from_index(self.shared.params.index(P::Range))),
+            n => n,
+        }
     }
 
     /// Latency for `range` at the current sample rate, samples.
@@ -393,7 +398,17 @@ impl Engine {
         self.shared.latency_changed.swap(false, Ordering::AcqRel)
     }
 
-    /// Sample rate of the running processor.
+    /// Tells the engine the host's sample rate before activation, so [`Engine::latency`]
+    /// is right when a host asks for it early.
+    pub fn set_sample_rate(&self, sample_rate: f32) {
+        if sample_rate.is_finite() && sample_rate > 0.0 {
+            self.shared
+                .sample_rate
+                .store(sample_rate.to_bits(), Ordering::Relaxed);
+        }
+    }
+
+    /// Sample rate of the running processor (or the host's, before activation).
     pub fn sample_rate(&self) -> f32 {
         load_f(&self.shared.sample_rate)
     }
@@ -508,20 +523,21 @@ impl Engine {
         out
     }
 
-    /// Restores what [`Engine::save_state`] wrote. Unknown or damaged data is ignored.
-    pub fn load_state(&self, data: &[u8]) {
+    /// Restores what [`Engine::save_state`] wrote. Returns false, changing nothing, for
+    /// data that isn't a SolPlugs Pitch state (empty, damaged or from something else).
+    pub fn load_state(&self, data: &[u8]) -> bool {
         let Some(rest) = data.strip_prefix(MAGIC.as_slice()) else {
-            return;
+            return false;
         };
         if rest.len() < 4 {
-            return;
+            return false;
         }
         let n = u32::from_le_bytes([rest[0], rest[1], rest[2], rest[3]]) as usize;
         let Some(json) = rest.get(4..4 + n) else {
-            return;
+            return false;
         };
         let Ok(state) = serde_json::from_slice::<State>(json) else {
-            return;
+            return false;
         };
         for (name, v) in &state.params {
             if let Some(p) = P::ALL.iter().find(|p| p.info().name == name) {
@@ -531,12 +547,13 @@ impl Engine {
         self.set_custom_mask(state.custom_mask);
         self.clear_take();
         let (Some(meta), Some(edits)) = (state.take, state.edits) else {
-            return;
+            return true;
         };
         let audio = &rest[4 + n..];
         let need = meta.len * meta.channels * 4;
         if meta.channels == 0 || meta.channels > 2 || audio.len() < need {
-            return;
+            // Settings restored; the take is damaged, so it is dropped.
+            return true;
         }
         let channels = (0..meta.channels)
             .map(|c| {
@@ -555,6 +572,7 @@ impl Engine {
         if let Ok(tx) = self.to_worker.lock() {
             let _ = tx.send(ToWorker::Load(take, edits));
         }
+        true
     }
 }
 
@@ -818,7 +836,11 @@ impl Worker {
     fn run(mut self) {
         while !self.shared.stop.load(Ordering::Relaxed) {
             match self.rx.recv_timeout(Duration::from_millis(10)) {
-                Ok(ToWorker::Stream(c)) => self.stream = Some(c),
+                Ok(ToWorker::Stream(c)) => {
+                    // A new activation: keep what the old processor already captured.
+                    self.drain_capture();
+                    self.stream = Some(c);
+                }
                 Ok(ToWorker::Load(take, edits)) => self.finish(take, Some(edits)),
                 Err(mpsc::RecvTimeoutError::Timeout) => {}
                 Err(mpsc::RecvTimeoutError::Disconnected) => break,

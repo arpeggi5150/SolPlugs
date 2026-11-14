@@ -40,6 +40,11 @@ fn play(engine: &Arc<Engine>, x: &[f32], sr: f32, at: i64, playing: bool) -> Vec
         );
         out.extend_from_slice(&l);
         pos += n;
+        // Faster than real time, but not so fast that the capture ring (about 5 s)
+        // overflows before the worker drains it, as a real host never would.
+        if (pos / 512) % 64 == 0 {
+            std::thread::sleep(Duration::from_millis(15));
+        }
     }
     out
 }
@@ -74,7 +79,7 @@ fn capture_edit_and_play_back() {
         let g = engine.graph();
         let take = g.take.as_ref().unwrap();
         assert_eq!(take.start, at);
-        assert!(take.len() >= x.len());
+        assert!(take.len() >= x.len(), "take {} < {}", take.len(), x.len());
         assert_eq!(&take.channels[0][..x.len()], &x[..]);
         assert!(g.edits.notes.len() >= 3, "{} notes", g.edits.notes.len());
     }
@@ -116,7 +121,9 @@ fn capture_edit_and_play_back() {
     }
     let state = engine.save_state();
     let other = Arc::new(Engine::new());
-    other.load_state(&state);
+    assert!(other.load_state(&state));
+    assert!(!other.load_state(&[]));
+    assert!(!other.load_state(b"random bytes that are not a state"));
     wait_for(&other, GraphStatus::Ready);
     let g = other.graph();
     assert_eq!(g.take.as_ref().unwrap().start, at);
