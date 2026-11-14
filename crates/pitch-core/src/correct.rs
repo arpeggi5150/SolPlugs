@@ -50,6 +50,8 @@ const ONE_SIDE_MS: f32 = 90.0;
 const MOVE_ST: f32 = 1.0;
 /// A jump this big in one frame restarts the centre at the new pitch.
 const JUMP_ST: f32 = 3.0;
+/// Hard tune: time constant of a note step, ms.
+const SNAP_MS: f32 = 2.5;
 /// How fast the centre follows a note move.
 const FOLLOW_HZ: f32 = 15.0;
 /// Humanize: extra time constant at full humanize on a fully sustained note.
@@ -83,6 +85,8 @@ pub struct Corrector {
     note: Option<i32>,
     held_ms: f32,
     smoothed: f32,
+    snap: f32,
+    snap_decay: f32,
     voiced: bool,
 }
 
@@ -101,6 +105,8 @@ impl Corrector {
             note: None,
             held_ms: 0.0,
             smoothed: 0.0,
+            snap: 0.0,
+            snap_decay: (-frame_ms / SNAP_MS).exp(),
             voiced: false,
         }
     }
@@ -175,7 +181,8 @@ impl Corrector {
             }
             _ => cand,
         };
-        if Some(note) != self.note {
+        let changed = Some(note) != self.note;
+        if changed {
             self.held_ms = 0.0;
         } else {
             self.held_ms += self.dt_ms;
@@ -186,8 +193,17 @@ impl Corrector {
         let want = note as f32 - centre;
         let sustain = (self.held_ms / SUSTAIN_MS).clamp(0.0, 1.0);
         let tau = p.retune_ms.max(0.0) + p.humanize.clamp(0.0, 1.0) * HUMANIZE_MS * sustain;
-        if tau <= 0.0 || (first && p.retune_ms <= 0.0) {
+        if first && p.retune_ms <= 0.0 {
             self.smoothed = want;
+            self.snap = 0.0;
+        } else if tau <= 0.0 {
+            // Hard tune: the note steps, but over a few milliseconds, since a jump of a
+            // semitone inside one grain is heard as a click.
+            if changed {
+                self.snap = self.smoothed - want;
+            }
+            self.snap *= self.snap_decay;
+            self.smoothed = want + self.snap;
         } else {
             let a = 1.0 - (-self.dt_ms / tau).exp();
             self.smoothed += a * (want - self.smoothed);
