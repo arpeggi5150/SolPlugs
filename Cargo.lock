@@ -2311,6 +2311,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "solplugs-eq-core"
+version = "0.1.0"
+dependencies = [
+ "hound",
+ "rustfft",
+ "solplugs-comp-core",
+]
+
+[[package]]
 name = "solplugs-pitch"
 version = "0.1.0"
 dependencies = [
