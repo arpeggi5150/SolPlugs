@@ -1,11 +1,12 @@
 //! Automatic correction: turns the detected pitch track into a target pitch, frame by frame.
 //!
 //! The detected pitch `m` (MIDI, fractional) is split into a slow centre (a two-pole
-//! low-pass, ~1.5 Hz, which follows fast when the singer moves to another note) and the vibrato around it, `v = m - centre`. The note is chosen from
-//! the centre with hysteresis, so vibrato across a note boundary never flips notes. The
-//! correction `note - centre` is smoothed with the retune time constant and applied to the
-//! centre, so vibrato survives correction untouched (scaled by the vibrato control). At
-//! retune speed 0 the vibrato is flattened too, which is the hard-tune effect.
+//! low-pass, ~1.5 Hz, that follows fast when the singer moves to another note) and the
+//! vibrato around it, `v = m - centre`. The note is chosen from the centre with
+//! hysteresis, so vibrato across a note boundary never flips notes. The correction
+//! `note - centre` is smoothed with the retune time constant and applied to the centre,
+//! so vibrato survives correction untouched (scaled by the vibrato control). At retune
+//! speed 0 the vibrato is flattened too, which is the hard-tune effect.
 
 use crate::scale::Scale;
 

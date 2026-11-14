@@ -344,11 +344,25 @@ fn main() {
     let took = t.elapsed().as_secs_f32();
     let n_notes = edits.notes.len();
     writeln!(r, "Found {n_notes} notes in {took:.2} s.\n").unwrap();
+    // Only notes at a singing level: quiet bleed or breaths are not what you'd fix.
+    let note_rms = |n: &solplugs_pitch_core::notes::Note| {
+        let (a, b) = (
+            n.src_start.max(0) as usize / an.hop,
+            n.src_end.max(0) as usize / an.hop,
+        );
+        let v: Vec<f32> = an.frames[a.min(an.frames.len())..b.min(an.frames.len())]
+            .iter()
+            .map(|f| f.rms)
+            .collect();
+        percentile(&v, 0.5)
+    };
+    let all_rms: Vec<f32> = edits.notes.iter().map(note_rms).collect();
+    let loud = percentile(&all_rms, 0.5) * 0.25;
     let worst = edits
         .notes
         .iter()
         .enumerate()
-        .filter(|(_, n)| (n.src_end - n.src_start) as f32 > 0.15 * sr)
+        .filter(|(_, n)| (n.src_end - n.src_start) as f32 > 0.15 * sr && note_rms(n) >= loud)
         .max_by(|a, b| {
             (a.1.pitch - a.1.pitch.round())
                 .abs()
@@ -386,12 +400,12 @@ fn main() {
         let (b, a) = (span(&x), span(&y));
         writeln!(
             r,
-            "Dragged the most out-of-tune note ({} at {:.2} s, {:+.0} cents) onto the grid (`graph-fixed.wav`): measured {:+.0} -> {:+.0} cents; new clicks {:.1}; render took {render_s:.2} s.",
+            "Dragged the most out-of-tune note ({} at {:.2} s, {:+.0} cents) onto the grid (`graph-fixed.wav`): asked for {:+.0} cents, the render moved it {:+.0} cents (independent tracker, note middle); new clicks {:.1}; render took {render_s:.2} s.",
             note_name(n.pitch.round() as i32),
             n.src_start as f32 / sr,
             (n.pitch - n.pitch.round()) * 100.0,
-            (b - n.pitch.round()) * 100.0,
-            (a - n.pitch.round()) * 100.0,
+            (n.pitch.round() - n.pitch) * 100.0,
+            (a - b) * 100.0,
             new_clicks(&x, &y, sr)
         )
         .unwrap();
