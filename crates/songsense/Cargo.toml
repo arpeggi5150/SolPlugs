@@ -1,0 +1,26 @@
+[package]
+name = "solplugs-songsense"
+description = "Song Sense's BPM and key detector, linked from a private Song Sense checkout at build time. SolPlugs carries only this binding, never the detector's source."
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+rust-version.workspace = true
+build = "build.rs"
+links = "songsense"
+
+[dependencies]
+log.workspace = true
+
+[build-dependencies]
+cc = "1"
+
+# The FFI call is the only unsafe code, in lib.rs, with a SAFETY comment.
+[lints.rust]
+unsafe_code = "deny"
+unexpected_cfgs = { level = "warn", check-cfg = ["cfg(songsense_linked)"] }
+
+[lints.clippy]
+dbg_macro = "warn"
+
+[dev-dependencies]
+hound = "3.5"
