@@ -1,8 +1,8 @@
 //! Developer tasks.
 //!
-//! - `cargo xtask bundle [--debug] [pitch|compressor]`: builds the plugins (all, or the one
+//! - `cargo xtask bundle [--debug] [pitch|compressor|eq]`: builds the plugins (all, or the one
 //!   named) and lays out `dist/` with `<Name>.vst3` (bundle folder) and `<Name>.clap`.
-//! - `cargo xtask install [--debug] [pitch|compressor]`: bundles, then copies them into the
+//! - `cargo xtask install [--debug] [pitch|compressor|eq]`: bundles, then copies them into the
 //!   per-user plugin folders (`%LOCALAPPDATA%\Programs\Common\VST3` and `...\CLAP` on Windows).
 #![deny(
     clippy::unwrap_used,
@@ -37,6 +37,12 @@ const PLUGINS: &[Plugin] = &[
         package: "solplugs-compressor",
         lib: "solplugs_compressor",
         name: "SolPlugs Compressor",
+    },
+    Plugin {
+        short: "eq",
+        package: "solplugs-eq",
+        lib: "solplugs_eq",
+        name: "SolPlugs EQ",
     },
 ];
 
@@ -201,7 +207,7 @@ fn main() -> ExitCode {
     };
     let each = |f: fn(Plugin, bool) -> Result<(), String>| -> Result<(), String> {
         if chosen.is_empty() {
-            return Err("unknown plugin (use pitch or compressor)".into());
+            return Err("unknown plugin (use pitch, compressor or eq)".into());
         }
         chosen.iter().try_for_each(|p| f(*p, release))
     };
@@ -213,7 +219,7 @@ fn main() -> ExitCode {
             None => Err("usage: cargo xtask probe-vst3 <path to .vst3 binary>".into()),
         },
         _ => Err(
-            "usage: cargo xtask <bundle|install> [pitch|compressor] [--debug] | probe-vst3 PATH"
+            "usage: cargo xtask <bundle|install> [pitch|compressor|eq] [--debug] | probe-vst3 PATH"
                 .into(),
         ),
     };

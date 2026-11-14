@@ -2311,12 +2311,56 @@ dependencies = [
 ]
 
 [[package]]
+name = "solplugs-eq"
+version = "0.1.0"
+dependencies = [
+ "clack-extensions",
+ "clack-plugin",
+ "egui",
+ "egui-baseview",
+ "hound",
+ "log",
+ "raw-window-handle",
+ "solplugs-eq-app",
+ "solplugs-eq-core",
+ "vst3",
+]
+
+[[package]]
+name = "solplugs-eq-app"
+version = "0.1.0"
+dependencies = [
+ "egui",
+ "hound",
+ "log",
+ "rtrb",
+ "rustfft",
+ "serde",
+ "serde_json",
+ "solplugs-eq-core",
+]
+
+[[package]]
 name = "solplugs-eq-core"
 version = "0.1.0"
 dependencies = [
  "hound",
  "rustfft",
  "solplugs-comp-core",
+]
+
+[[package]]
+name = "solplugs-eq-standalone"
+version = "0.1.0"
+dependencies = [
+ "cpal",
+ "eframe",
+ "egui",
+ "hound",
+ "log",
+ "rtrb",
+ "solplugs-eq-app",
+ "solplugs-eq-core",
 ]
 
 [[package]]
