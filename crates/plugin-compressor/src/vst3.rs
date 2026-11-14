@@ -934,7 +934,7 @@ impl IPluginFactory2Trait for Factory {
         copy_cstring("Audio Module Class", &mut info.category);
         copy_cstring(crate::NAME, &mut info.name);
         info.classFlags = 0;
-        copy_cstring("Fx|Comp Shift", &mut info.subCategories);
+        copy_cstring("Fx|Dynamics", &mut info.subCategories);
         copy_cstring(crate::VENDOR, &mut info.vendor);
         copy_cstring(crate::VERSION, &mut info.version);
         copy_cstring("VST 3.7", &mut info.sdkVersion);
@@ -954,7 +954,7 @@ impl IPluginFactory3Trait for Factory {
         copy_cstring("Audio Module Class", &mut info.category);
         copy_wstring(crate::NAME, &mut info.name);
         info.classFlags = 0;
-        copy_cstring("Fx|Comp Shift", &mut info.subCategories);
+        copy_cstring("Fx|Dynamics", &mut info.subCategories);
         copy_wstring(crate::VENDOR, &mut info.vendor);
         copy_wstring(crate::VERSION, &mut info.version);
         copy_wstring("VST 3.7", &mut info.sdkVersion);

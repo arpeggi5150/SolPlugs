@@ -69,7 +69,7 @@ pub fn show(ui: &mut Ui, engine: &Engine, local: &mut UiLocal) {
     }
     let pal = Palette::default();
     ui.ctx()
-        .request_repaint_after(std::time::Duration::from_millis(16));
+        .request_repaint_after(std::time::Duration::from_millis(33));
     engine.drain_columns(|c| local.history.push_back(c));
     while local.history.len() > HISTORY {
         local.history.pop_front();

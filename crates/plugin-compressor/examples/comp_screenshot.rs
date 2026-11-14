@@ -1,6 +1,6 @@
 //! Dev tool: opens the plugin editor (the same baseview window a host gets) in its own
 //! window with a vocal looping through the engine, for checking the UI without a DAW.
-//! `cargo run --example screenshot -- [vca|opto|fet|varimu|clean] [seconds]`
+//! `cargo run --example comp_screenshot -- [vca|opto|fet|varimu|clean] [seconds]`
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use std::sync::Arc;
