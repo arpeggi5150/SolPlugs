@@ -97,9 +97,17 @@ impl Cache {
 
     pub(crate) fn put(&self, id: &str, audio: Arc<Audio>) {
         let Ok(mut m) = self.map.lock() else { return };
-        m.insert(id.to_string(), CacheEntry { audio, used: Instant::now() });
+        m.insert(
+            id.to_string(),
+            CacheEntry {
+                audio,
+                used: Instant::now(),
+            },
+        );
         let size = |m: &HashMap<String, CacheEntry>| {
-            m.values().map(|e| e.audio.frames() * e.audio.channels.len()).sum::<usize>()
+            m.values()
+                .map(|e| e.audio.frames() * e.audio.channels.len())
+                .sum::<usize>()
         };
         while m.len() > 1 && size(&m) > CACHE_SAMPLES {
             let Some(oldest) = m.iter().min_by_key(|(_, e)| e.used).map(|(k, _)| k.clone()) else {
@@ -121,7 +129,13 @@ pub(crate) enum Load {
     /// Decode into the cache (hover prefetch, detail view).
     Fetch { id: String, path: PathBuf },
     /// Decode if needed, render through `fx`, and play `from..to` seconds.
-    Play { id: String, path: PathBuf, fx: Fx, from: f64, to: Option<f64> },
+    Play {
+        id: String,
+        path: PathBuf,
+        fx: Fx,
+        from: f64,
+        to: Option<f64>,
+    },
     /// Re-render the playing clip after a processing change, keeping the playhead.
     Refresh { id: String, path: PathBuf, fx: Fx },
 }
@@ -135,6 +149,7 @@ pub struct Engine {
     tx: Sender<Cmd>,
     load_tx: Sender<Load>,
     pub(crate) cancel: Arc<AtomicBool>,
+    threads: Vec<std::thread::JoinHandle<()>>,
 }
 
 static SHARED: OnceLock<Mutex<Weak<Engine>>> = OnceLock::new();
@@ -180,9 +195,12 @@ impl Engine {
         let (load_tx, load_rx) = channel();
         let cancel = Arc::new(AtomicBool::new(false));
         let w = worker::Worker::new(store.clone(), shared.clone(), cache.clone(), cancel.clone());
-        spawn("solplugs-samples", move || w.run(rx));
+        let mut threads = Vec::new();
+        threads.extend(spawn("solplugs-samples", move || w.run(rx)));
         let (p, c, s) = (player.clone(), cache.clone(), shared.clone());
-        spawn("solplugs-samples-preview", move || preview_loop(&load_rx, &p, &c, &s));
+        threads.extend(spawn("solplugs-samples-preview", move || {
+            preview_loop(&load_rx, &p, &c, &s)
+        }));
         Self {
             store,
             shared,
@@ -191,6 +209,7 @@ impl Engine {
             tx,
             load_tx,
             cancel,
+            threads,
         }
     }
 
@@ -232,7 +251,10 @@ impl Engine {
 
     /// Starts decoding `id` so a click plays at once.
     pub fn prefetch(&self, id: &str, path: &std::path::Path) {
-        let _ = self.load_tx.send(Load::Fetch { id: id.into(), path: path.into() });
+        let _ = self.load_tx.send(Load::Fetch {
+            id: id.into(),
+            path: path.into(),
+        });
     }
 
     /// Plays sample `id` (through its processing) from `from` to `to` seconds.
@@ -249,7 +271,11 @@ impl Engine {
     /// Re-renders the playing preview after its processing changed.
     pub fn refresh_preview(&self, id: &str, path: &std::path::Path, fx: &Fx) {
         if self.player.clip_id().as_deref() == Some(id) {
-            let _ = self.load_tx.send(Load::Refresh { id: id.into(), path: path.into(), fx: fx.clone() });
+            let _ = self.load_tx.send(Load::Refresh {
+                id: id.into(),
+                path: path.into(),
+                fx: fx.clone(),
+            });
         }
     }
 
@@ -268,13 +294,22 @@ impl Drop for Engine {
     fn drop(&mut self) {
         self.cancel.store(true, Ordering::Release);
         let _ = self.tx.send(Cmd::Quit);
+        // Close the preview queue so its thread ends, then wait for both: a plugin binary
+        // can be unloaded right after its last instance goes, and no thread may outlive it.
+        let (dead, _) = channel();
+        drop(std::mem::replace(&mut self.load_tx, dead));
+        for t in self.threads.drain(..) {
+            let _ = t.join();
+        }
     }
 }
 
-fn spawn(name: &str, f: impl FnOnce() + Send + 'static) {
-    if let Err(e) = std::thread::Builder::new().name(name.into()).spawn(f) {
-        log::error!("can't start {name}: {e}");
-    }
+fn spawn(name: &str, f: impl FnOnce() + Send + 'static) -> Option<std::thread::JoinHandle<()>> {
+    std::thread::Builder::new()
+        .name(name.into())
+        .spawn(f)
+        .map_err(|e| log::error!("can't start {name}: {e}"))
+        .ok()
 }
 
 fn load(cache: &Cache, id: &str, path: &std::path::Path) -> Result<Arc<Audio>, String> {
@@ -287,7 +322,11 @@ fn load(cache: &Cache, id: &str, path: &std::path::Path) -> Result<Arc<Audio>, S
 }
 
 fn render(audio: &Arc<Audio>, fx: &Fx) -> Arc<Audio> {
-    if fx.is_neutral() { audio.clone() } else { Arc::new(fx.render(audio)) }
+    if fx.is_neutral() {
+        audio.clone()
+    } else {
+        Arc::new(fx.render(audio))
+    }
 }
 
 fn preview_loop(rx: &Receiver<Load>, player: &Player, cache: &Cache, shared: &Mutex<Shared>) {
@@ -295,9 +334,12 @@ fn preview_loop(rx: &Receiver<Load>, player: &Player, cache: &Cache, shared: &Mu
         // Coalesce: only the newest play request matters; fetches are cheap to keep.
         let mut batch = vec![first];
         batch.extend(rx.try_iter());
-        let last_play = batch.iter().rposition(|l| matches!(l, Load::Play { .. } | Load::Refresh { .. }));
+        let last_play = batch
+            .iter()
+            .rposition(|l| matches!(l, Load::Play { .. } | Load::Refresh { .. }));
         for (i, req) in batch.into_iter().enumerate() {
-            let skip = matches!(req, Load::Play { .. } | Load::Refresh { .. }) && Some(i) != last_play;
+            let skip =
+                matches!(req, Load::Play { .. } | Load::Refresh { .. }) && Some(i) != last_play;
             if skip {
                 continue;
             }
@@ -305,8 +347,21 @@ fn preview_loop(rx: &Receiver<Load>, player: &Player, cache: &Cache, shared: &Mu
                 Load::Fetch { id, path } => {
                     let _ = load(cache, &id, &path);
                 }
-                Load::Play { id, path, fx, from, to } => match load(cache, &id, &path) {
-                    Ok(a) => player.play(Arc::new(Clip { id, audio: render(&a, &fx) }), from, to),
+                Load::Play {
+                    id,
+                    path,
+                    fx,
+                    from,
+                    to,
+                } => match load(cache, &id, &path) {
+                    Ok(a) => player.play(
+                        Arc::new(Clip {
+                            id,
+                            audio: render(&a, &fx),
+                        }),
+                        from,
+                        to,
+                    ),
                     Err(e) => {
                         if let Ok(mut s) = shared.lock() {
                             s.note(format!("Can't play {}: {e}", path.display()), true);
@@ -315,7 +370,10 @@ fn preview_loop(rx: &Receiver<Load>, player: &Player, cache: &Cache, shared: &Mu
                 },
                 Load::Refresh { id, path, fx } => {
                     if let Ok(a) = load(cache, &id, &path) {
-                        player.replace(Arc::new(Clip { id, audio: render(&a, &fx) }));
+                        player.replace(Arc::new(Clip {
+                            id,
+                            audio: render(&a, &fx),
+                        }));
                     }
                 }
             }

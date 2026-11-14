@@ -41,7 +41,13 @@ fn main() -> eframe::Result {
     eframe::run_native(
         "SolPlugs Samples",
         options,
-        Box::new(move |_cc| Ok(Box::new(App { engine, local: UiLocal::default(), _audio: output }))),
+        Box::new(move |_cc| {
+            Ok(Box::new(App {
+                engine,
+                local: UiLocal::default(),
+                _audio: output,
+            }))
+        }),
     )
 }
 

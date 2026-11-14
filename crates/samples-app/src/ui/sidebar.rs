@@ -18,14 +18,33 @@ fn nav(ui: &mut Ui, local: &mut UiLocal, view: View, label: &str, count: usize, 
     } else if resp.hovered() {
         p.rect_filled(rect, CornerRadius::same(7), pal.panel_hi);
     }
-    p.text(rect.left_center() + vec2(10.0, 0.0), egui::Align2::LEFT_CENTER, label, egui::FontId::proportional(13.5), if on { pal.text } else { pal.text_dim });
-    p.text(rect.right_center() - vec2(10.0, 0.0), egui::Align2::RIGHT_CENTER, count.to_string(), egui::FontId::proportional(11.5), pal.text_faint);
+    p.text(
+        rect.left_center() + vec2(10.0, 0.0),
+        egui::Align2::LEFT_CENTER,
+        label,
+        egui::FontId::proportional(13.5),
+        if on { pal.text } else { pal.text_dim },
+    );
+    p.text(
+        rect.right_center() - vec2(10.0, 0.0),
+        egui::Align2::RIGHT_CENTER,
+        count.to_string(),
+        egui::FontId::proportional(11.5),
+        pal.text_faint,
+    );
     if resp.clicked() {
         local.view = view;
     }
 }
 
-pub fn show(ui: &mut Ui, s: &mut Shared, local: &mut UiLocal, pal: &Palette, engine: &Engine, actions: &mut Vec<Action>) {
+pub fn show(
+    ui: &mut Ui,
+    s: &mut Shared,
+    local: &mut UiLocal,
+    pal: &Palette,
+    engine: &Engine,
+    actions: &mut Vec<Action>,
+) {
     egui::ScrollArea::vertical().auto_shrink([false, false]).show(ui, |ui| {
         ui.horizontal(|ui| {
             let busy = s.import.is_some();
@@ -33,11 +52,9 @@ pub fn show(ui: &mut Ui, s: &mut Shared, local: &mut UiLocal, pal: &Palette, eng
                 .add_enabled(!busy, egui::Button::new(RichText::new("+ Import folder").strong()).fill(pal.accent.gamma_multiply(0.8)))
                 .on_hover_text("Scan a folder of samples. Files stay where they are. You can also drop folders on the window.")
                 .clicked()
-            {
-                if super::has_dialogs() {
+                && super::has_dialogs() {
                     actions.push(Action::PickImport);
                 }
-            }
             if ui.add_enabled(!busy, egui::Button::new("Rescan")).on_hover_text("Rescan imported folders for new or missing files").clicked() {
                 engine.send(Cmd::Rescan);
             }

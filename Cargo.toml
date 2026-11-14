@@ -1,6 +1,7 @@
 [workspace]
 resolver = "3"
 members = ["crates/*", "xtask"]
+exclude = ["vendor"]
 
 [workspace.package]
 version = "0.1.0"
@@ -41,3 +42,7 @@ type_complexity = "allow"
 [profile.release]
 lto = "thin"
 codegen-units = 4
+
+# File drops into plugin windows; see vendor/egui-baseview/VENDORED.md.
+[patch.crates-io]
+egui-baseview = { path = "vendor/egui-baseview" }

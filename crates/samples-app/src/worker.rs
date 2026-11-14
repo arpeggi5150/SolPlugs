@@ -51,7 +51,12 @@ pub(crate) struct Worker {
 }
 
 impl Worker {
-    pub(crate) fn new(store: Store, shared: Arc<Mutex<Shared>>, cache: Arc<Cache>, cancel: Arc<AtomicBool>) -> Self {
+    pub(crate) fn new(
+        store: Store,
+        shared: Arc<Mutex<Shared>>,
+        cache: Arc<Cache>,
+        cancel: Arc<AtomicBool>,
+    ) -> Self {
         let saved_mtime = store.modified();
         Self {
             store,
@@ -164,12 +169,22 @@ impl Worker {
                         }
                     }
                 }
-                paths.iter().filter(|p| s.lib.by_path(p).is_some()).cloned().collect()
+                paths
+                    .iter()
+                    .filter(|p| s.lib.by_path(p).is_some())
+                    .cloned()
+                    .collect()
             })
             .unwrap_or_default();
         paths.retain(|p| !known.contains(p));
         let total = paths.len();
-        self.with(|s| s.import = Some(Progress { done: 0, total, current: String::new() }));
+        self.with(|s| {
+            s.import = Some(Progress {
+                done: 0,
+                total,
+                current: String::new(),
+            })
+        });
         let genres: Vec<String> = self
             .with(|s| s.lib.genres.iter().map(|g| g.name.clone()).collect())
             .unwrap_or_default();
@@ -178,7 +193,8 @@ impl Worker {
         let done = AtomicUsize::new(0);
         let failed = Mutex::new(Vec::<(PathBuf, String)>::new());
         let added = AtomicUsize::new(0);
-        let threads = std::thread::available_parallelism().map_or(2, |n| n.get().saturating_sub(1).clamp(1, 8));
+        let threads = std::thread::available_parallelism()
+            .map_or(2, |n| n.get().saturating_sub(1).clamp(1, 8));
         std::thread::scope(|sc| {
             for _ in 0..threads {
                 sc.spawn(|| {
@@ -194,7 +210,10 @@ impl Worker {
                         self.with(|s| {
                             if let Some(pr) = s.import.as_mut() {
                                 pr.done = d;
-                                pr.current = p.file_name().map(|n| n.to_string_lossy().into_owned()).unwrap_or_default();
+                                pr.current = p
+                                    .file_name()
+                                    .map(|n| n.to_string_lossy().into_owned())
+                                    .unwrap_or_default();
                             }
                             match probed {
                                 Ok(mut sample) => {
@@ -221,7 +240,10 @@ impl Worker {
         let cancelled = self.cancel.swap(false, Ordering::AcqRel);
         self.with(|s| {
             s.import = None;
-            let mut msg = format!("Imported {added} sample{}", if added == 1 { "" } else { "s" });
+            let mut msg = format!(
+                "Imported {added} sample{}",
+                if added == 1 { "" } else { "s" }
+            );
             if !known.is_empty() {
                 msg.push_str(&format!(", {} already in the library", known.len()));
             }
@@ -236,7 +258,11 @@ impl Worker {
                         "Skipped {} file{} that couldn't be read, e.g. {}: {}",
                         failed.len(),
                         if failed.len() == 1 { "" } else { "s" },
-                        first.0.file_name().map(|n| n.to_string_lossy().into_owned()).unwrap_or_default(),
+                        first
+                            .0
+                            .file_name()
+                            .map(|n| n.to_string_lossy().into_owned())
+                            .unwrap_or_default(),
                         first.1
                     ),
                     true,
@@ -278,7 +304,9 @@ impl Worker {
     }
 
     fn edit(&mut self, id: &str, edit: Edit) {
-        let Some(sample) = self.with(|s| s.lib.sample(id).cloned()).flatten() else { return };
+        let Some(sample) = self.with(|s| s.lib.sample(id).cloned()).flatten() else {
+            return;
+        };
         let audio = match self.load_audio(&sample) {
             Ok(a) => a,
             Err(e) => {
@@ -287,23 +315,35 @@ impl Worker {
             }
         };
         let store = self.store.clone();
-        self.with(|s| match edits::save(&mut s.lib, &store, id, &audio, edit) {
-            Ok(ids) => {
-                let names: Vec<String> = ids.iter().filter_map(|i| s.lib.sample(i)).map(|x| x.name.clone()).collect();
-                s.note(format!("Saved {}", names.join(" and ")), false);
-                s.touch();
-            }
-            Err(e) => s.note(format!("Couldn't save the edit: {e}"), true),
-        });
+        self.with(
+            |s| match edits::save(&mut s.lib, &store, id, &audio, edit) {
+                Ok(ids) => {
+                    let names: Vec<String> = ids
+                        .iter()
+                        .filter_map(|i| s.lib.sample(i))
+                        .map(|x| x.name.clone())
+                        .collect();
+                    s.note(format!("Saved {}", names.join(" and ")), false);
+                    s.touch();
+                }
+                Err(e) => s.note(format!("Couldn't save the edit: {e}"), true),
+            },
+        );
         self.save(true);
     }
 
     fn export(&mut self, pack: &str, dest: &Path) {
-        let Some(lib) = self.with(|s| s.lib.clone()) else { return };
+        let Some(lib) = self.with(|s| s.lib.clone()) else {
+            return;
+        };
         let res = export::export(&lib, pack, dest);
         self.with(|s| match res {
             Ok(out) => {
-                let mut msg = format!("Exported {} sample(s) to {}", out.copied, out.folder.display());
+                let mut msg = format!(
+                    "Exported {} sample(s) to {}",
+                    out.copied,
+                    out.folder.display()
+                );
                 if !out.skipped.is_empty() {
                     msg.push_str(&format!(" ({} missing file(s) skipped)", out.skipped.len()));
                 }
@@ -340,12 +380,21 @@ impl Worker {
     }
 
     fn detect(&mut self, id: &str) {
-        let Some(mut sample) = self.with(|s| s.lib.sample(id).cloned()).flatten() else { return };
+        let Some(mut sample) = self.with(|s| s.lib.sample(id).cloned()).flatten() else {
+            return;
+        };
         if !solplugs_songsense::available() {
-            self.with(|s| s.note("Song Sense isn't in this build, so BPM/key can't be detected", true));
+            self.with(|s| {
+                s.note(
+                    "Song Sense isn't in this build, so BPM/key can't be detected",
+                    true,
+                )
+            });
             return;
         }
-        let Ok(audio) = self.load_audio(&sample) else { return };
+        let Ok(audio) = self.load_audio(&sample) else {
+            return;
+        };
         if sample.bpm_source == Source::Detected {
             sample.bpm = None;
         }
@@ -362,7 +411,10 @@ impl Worker {
                 x.key_source = sample.key_source;
             }
             if (sample.bpm, sample.key.clone()) == before && before.0.is_none() {
-                s.note(format!("Song Sense found no tempo in {}", sample.name), false);
+                s.note(
+                    format!("Song Sense found no tempo in {}", sample.name),
+                    false,
+                );
             }
             s.touch();
         });

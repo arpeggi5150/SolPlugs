@@ -39,7 +39,10 @@ pub(crate) enum Action {
     PickCover(Id),
     PickArt(Id),
     PickExport(Id),
-    DragOut { paths: Vec<PathBuf>, image: Option<PathBuf> },
+    DragOut {
+        paths: Vec<PathBuf>,
+        image: Option<PathBuf>,
+    },
 }
 
 /// UI-only state.
@@ -164,7 +167,12 @@ pub fn has_dialogs() -> bool {
 }
 
 /// Draws the whole manager. `window` is the host window, used to start OS drags of samples.
-pub fn show(ui: &mut Ui, engine: &Engine, local: &mut UiLocal, window: Option<&dyn HasWindowHandle>) {
+pub fn show(
+    ui: &mut Ui,
+    engine: &Engine,
+    local: &mut UiLocal,
+    window: Option<&dyn HasWindowHandle>,
+) {
     if !local.styled {
         theme::apply(ui.ctx());
         local.styled = true;
@@ -180,20 +188,32 @@ pub fn show(ui: &mut Ui, engine: &Engine, local: &mut UiLocal, window: Option<&d
         let s: &mut Shared = &mut guard;
         let playing = engine.player().is_playing();
         if playing || s.import.is_some() {
-            ui.ctx().request_repaint_after(std::time::Duration::from_millis(16));
+            ui.ctx()
+                .request_repaint_after(std::time::Duration::from_millis(16));
         } else {
-            ui.ctx().request_repaint_after(std::time::Duration::from_millis(250));
+            ui.ctx()
+                .request_repaint_after(std::time::Duration::from_millis(250));
         }
-        egui::Panel::top("smp-top").frame(theme::bar(&pal)).show(ui, |ui| topbar::show(ui, s, local, &pal, engine));
-        egui::Panel::bottom("smp-status").frame(theme::bar(&pal)).show(ui, |ui| status_bar(ui, s, &pal, engine));
+        egui::Panel::top("smp-top")
+            .frame(theme::bar(&pal))
+            .show(ui, |ui| topbar::show(ui, s, local, &pal, engine));
+        egui::Panel::bottom("smp-status")
+            .frame(theme::bar(&pal))
+            .show(ui, |ui| status_bar(ui, s, &pal, engine));
         egui::Panel::left("smp-side")
             .frame(theme::sidebar(&pal))
             .resizable(true)
             .default_size(230.0)
             .min_size(190.0)
             .max_size(340.0)
-            .show(ui, |ui| sidebar::show(ui, s, local, &pal, engine, &mut actions));
-        if local.selected.as_ref().is_some_and(|id| s.lib.sample(id).is_none()) {
+            .show(ui, |ui| {
+                sidebar::show(ui, s, local, &pal, engine, &mut actions)
+            });
+        if local
+            .selected
+            .as_ref()
+            .is_some_and(|id| s.lib.sample(id).is_none())
+        {
             local.select(None);
         }
         if local.selected.is_some() {
@@ -203,18 +223,22 @@ pub fn show(ui: &mut Ui, engine: &Engine, local: &mut UiLocal, window: Option<&d
                 .default_size(420.0)
                 .min_size(360.0)
                 .max_size(640.0)
-                .show(ui, |ui| detail::show(ui, s, local, &pal, engine, &mut actions));
+                .show(ui, |ui| {
+                    detail::show(ui, s, local, &pal, engine, &mut actions)
+                });
         }
-        egui::CentralPanel::default().frame(theme::body(&pal)).show(ui, |ui| {
-            if let View::Pack(id) = local.view.clone() {
-                if s.lib.pack(&id).is_some() {
-                    pack_view::show(ui, s, local, &pal, engine, &id, &mut actions);
-                } else {
-                    local.view = View::All;
+        egui::CentralPanel::default()
+            .frame(theme::body(&pal))
+            .show(ui, |ui| {
+                if let View::Pack(id) = local.view.clone() {
+                    if s.lib.pack(&id).is_some() {
+                        pack_view::show(ui, s, local, &pal, engine, &id, &mut actions);
+                    } else {
+                        local.view = View::All;
+                    }
                 }
-            }
-            grid::show(ui, s, local, &pal, engine, &mut actions);
-        });
+                grid::show(ui, s, local, &pal, engine, &mut actions);
+            });
         keyboard(ui, s, local, engine);
         file_drop(ui, &pal, engine);
     }
@@ -287,7 +311,10 @@ fn keyboard(ui: &mut Ui, s: &mut Shared, local: &mut UiLocal, engine: &Engine) {
         if r.is_empty() {
             return;
         }
-        let cur = local.selected.as_ref().and_then(|id| r.iter().position(|&i| s.lib.samples[i].id == *id));
+        let cur = local
+            .selected
+            .as_ref()
+            .and_then(|id| r.iter().position(|&i| s.lib.samples[i].id == *id));
         let next = match cur {
             None => 0,
             Some(c) if right => (c + 1).min(r.len() - 1),
@@ -304,15 +331,34 @@ fn file_drop(ui: &mut Ui, pal: &Palette, engine: &Engine) {
     let (hovering, dropped) = ui.ctx().input(|i| {
         (
             !i.raw.hovered_files.is_empty(),
-            i.raw.dropped_files.iter().map(|f| f.path().to_path_buf()).filter(|p| !p.as_os_str().is_empty()).collect::<Vec<_>>(),
+            i.raw
+                .dropped_files
+                .iter()
+                .map(|f| f.path().to_path_buf())
+                .filter(|p| !p.as_os_str().is_empty())
+                .collect::<Vec<_>>(),
         )
     });
     if hovering {
         let rect = ui.ctx().content_rect();
-        let p = ui.ctx().layer_painter(egui::LayerId::new(egui::Order::Foreground, egui::Id::unique("smp-drop")));
+        let p = ui.ctx().layer_painter(egui::LayerId::new(
+            egui::Order::Foreground,
+            egui::Id::unique("smp-drop"),
+        ));
         p.rect_filled(rect, 0.0, Color32::from_black_alpha(170));
-        p.rect_stroke(rect.shrink(12.0), 16.0, egui::Stroke::new(2.0, pal.accent), egui::StrokeKind::Inside);
-        p.text(rect.center(), Align2::CENTER_CENTER, "Drop to import", FontId::proportional(28.0), pal.text);
+        p.rect_stroke(
+            rect.shrink(12.0),
+            16.0,
+            egui::Stroke::new(2.0, pal.accent),
+            egui::StrokeKind::Inside,
+        );
+        p.text(
+            rect.center(),
+            Align2::CENTER_CENTER,
+            "Drop to import",
+            FontId::proportional(28.0),
+            pal.text,
+        );
     }
     if !dropped.is_empty() {
         engine.send(Cmd::Import(dropped));
@@ -322,18 +368,40 @@ fn file_drop(ui: &mut Ui, pal: &Palette, engine: &Engine) {
 fn status_bar(ui: &mut Ui, s: &mut Shared, pal: &Palette, engine: &Engine) {
     ui.horizontal(|ui| {
         if let Some(p) = &s.import {
-            let frac = if p.total > 0 { p.done as f32 / p.total as f32 } else { 0.0 };
-            ui.add(egui::ProgressBar::new(frac).desired_width(220.0).text(format!("Importing {}/{}", p.done, p.total)));
+            let frac = if p.total > 0 {
+                p.done as f32 / p.total as f32
+            } else {
+                0.0
+            };
+            ui.add(
+                egui::ProgressBar::new(frac)
+                    .desired_width(220.0)
+                    .text(format!("Importing {}/{}", p.done, p.total)),
+            );
             ui.label(egui::RichText::new(widgets::ellipsize(&p.current, 50)).color(pal.text_dim));
             if ui.button("Stop").clicked() {
                 engine.send(Cmd::CancelImport);
             }
         } else if let Some(e) = &s.load_error {
-            ui.label(egui::RichText::new(format!("The library file couldn't be read, so changes aren't saved: {e}")).color(pal.danger));
+            ui.label(
+                egui::RichText::new(format!(
+                    "The library file couldn't be read, so changes aren't saved: {e}"
+                ))
+                .color(pal.danger),
+            );
         } else if let Some(n) = s.notes.back().filter(|n| n.at.elapsed().as_secs() < 12) {
-            ui.label(egui::RichText::new(&n.text).color(if n.error { pal.danger } else { pal.text_dim }));
+            ui.label(egui::RichText::new(&n.text).color(if n.error {
+                pal.danger
+            } else {
+                pal.text_dim
+            }));
         } else {
-            let raws = s.lib.samples.iter().filter(|x| !x.version.is_edited()).count();
+            let raws = s
+                .lib
+                .samples
+                .iter()
+                .filter(|x| !x.version.is_edited())
+                .count();
             ui.label(
                 egui::RichText::new(format!(
                     "{} samples · {} raw · {} edited · {} packs",
@@ -349,7 +417,10 @@ fn status_bar(ui: &mut Ui, s: &mut Shared, pal: &Palette, engine: &Engine) {
             let (txt, c) = if solplugs_songsense::available() {
                 ("BPM/key: Song Sense", pal.ok)
             } else {
-                ("BPM/key detection off (Song Sense not in this build)", pal.text_faint)
+                (
+                    "BPM/key detection off (Song Sense not in this build)",
+                    pal.text_faint,
+                )
             };
             ui.label(egui::RichText::new(txt).size(11.0).color(c));
         });

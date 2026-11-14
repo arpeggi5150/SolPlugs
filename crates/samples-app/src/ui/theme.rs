@@ -95,31 +95,30 @@ pub fn apply(ctx: &egui::Context) {
 }
 
 /// Frame for the top bar.
-#[must_use]
 pub fn bar(pal: &Palette) -> Frame {
-    Frame::new().fill(pal.panel).inner_margin(Margin::symmetric(14, 10))
+    Frame::new()
+        .fill(pal.panel)
+        .inner_margin(Margin::symmetric(14, 10))
 }
 
 /// Frame for the sidebar.
-#[must_use]
 pub fn sidebar(pal: &Palette) -> Frame {
-    Frame::new().fill(pal.sidebar).inner_margin(Margin::symmetric(12, 12))
+    Frame::new()
+        .fill(pal.sidebar)
+        .inner_margin(Margin::symmetric(12, 12))
 }
 
 /// Frame for the detail panel.
-#[must_use]
 pub fn detail(pal: &Palette) -> Frame {
     Frame::new().fill(pal.panel).inner_margin(Margin::same(14))
 }
 
 /// Frame for the grid.
-#[must_use]
 pub fn body(pal: &Palette) -> Frame {
     Frame::new().fill(pal.bg).inner_margin(Margin::same(14))
 }
 
 /// A section block inside the detail panel.
-#[must_use]
 pub fn section(pal: &Palette) -> Frame {
     Frame::new()
         .fill(pal.card)

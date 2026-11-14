@@ -112,7 +112,8 @@ impl Player {
 
     /// Preview level in dB.
     pub fn set_gain_db(&self, db: f32) {
-        self.gain.store(10f32.powf(db / 20.0).to_bits(), Ordering::Release);
+        self.gain
+            .store(10f32.powf(db / 20.0).to_bits(), Ordering::Release);
     }
 
     /// The id of the clip loaded, if any.
@@ -130,7 +131,11 @@ impl Player {
     /// Position in seconds within the clip.
     #[must_use]
     pub fn position_sec(&self) -> f64 {
-        let sr = self.clip.load().as_ref().map_or(48_000.0, |c| c.audio.sample_rate);
+        let sr = self
+            .clip
+            .load()
+            .as_ref()
+            .map_or(48_000.0, |c| c.audio.sample_rate);
         f64::from_bits(self.pos.load(Ordering::Acquire)) / sr.max(1.0)
     }
 
@@ -195,7 +200,14 @@ mod tests {
     fn plays_resampled_and_stops_at_the_end() {
         let p = Player::default();
         let audio = Arc::new(Audio::new(24_000.0, vec![vec![0.5; 100]]));
-        p.play(Arc::new(Clip { id: "a".into(), audio }), 0.0, None);
+        p.play(
+            Arc::new(Clip {
+                id: "a".into(),
+                audio,
+            }),
+            0.0,
+            None,
+        );
         let (mut l, mut r) = (vec![0.0; 300], vec![0.0; 300]);
         p.render(&mut l, &mut r, 48_000.0);
         // 100 frames at 24 kHz is 200 frames at 48 kHz.
@@ -208,9 +220,19 @@ mod tests {
     #[test]
     fn loops_the_range() {
         let p = Player::default();
-        let audio = Arc::new(Audio::new(1000.0, vec![(0..1000).map(|i| i as f32).collect()]));
+        let audio = Arc::new(Audio::new(
+            1000.0,
+            vec![(0..1000).map(|i| i as f32).collect()],
+        ));
         p.set_looping(true);
-        p.play(Arc::new(Clip { id: "a".into(), audio }), 0.1, Some(0.2));
+        p.play(
+            Arc::new(Clip {
+                id: "a".into(),
+                audio,
+            }),
+            0.1,
+            Some(0.2),
+        );
         let (mut l, mut r) = (vec![0.0; 250], vec![0.0; 250]);
         p.render(&mut l, &mut r, 1000.0);
         assert_eq!(l[0], 100.0);

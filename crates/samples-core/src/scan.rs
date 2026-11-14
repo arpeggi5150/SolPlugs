@@ -58,7 +58,17 @@ pub fn hash(s: &str) -> String {
 /// Genres named by a path's folders ("Samples/Trap/808s/x.wav" gives "Trap").
 fn folder_genres(path: &Path, known: &[String]) -> Vec<String> {
     let norm = |s: &str| {
-        let s: String = s.to_lowercase().chars().map(|c| if c.is_alphanumeric() || c == '&' { c } else { ' ' }).collect();
+        let s: String = s
+            .to_lowercase()
+            .chars()
+            .map(|c| {
+                if c.is_alphanumeric() || c == '&' {
+                    c
+                } else {
+                    ' '
+                }
+            })
+            .collect();
         format!(" {} ", s.split_whitespace().collect::<Vec<_>>().join(" "))
     };
     let mut out = Vec::new();
@@ -109,7 +119,9 @@ pub fn fill_detected(s: &mut Sample, a: &Audio) {
     {
         // Song Sense calls a reading below 0.65 "low confidence"; leave those blank.
         if s.bpm.is_none()
-            && let Some(b) = d.bpm.filter(|_| d.bpm_confidence >= solplugs_songsense::LOW_CONFIDENCE)
+            && let Some(b) = d
+                .bpm
+                .filter(|_| d.bpm_confidence >= solplugs_songsense::LOW_CONFIDENCE)
         {
             s.bpm = Some((b * 10.0).round() / 10.0);
             s.bpm_source = Source::Detected;
@@ -242,7 +254,10 @@ mod tests {
         assert!(folder_genres(Path::new("/s/Warehouse/a.wav"), &known).is_empty());
         let lofi = vec!["Lo-Fi".to_string()];
         assert_eq!(folder_genres(Path::new("/s/Lo-Fi Dust/a.wav"), &lofi), lofi);
-        assert_eq!(folder_genres(Path::new("/s/lofi/a.wav"), &lofi), Vec::<String>::new());
+        assert_eq!(
+            folder_genres(Path::new("/s/lofi/a.wav"), &lofi),
+            Vec::<String>::new()
+        );
     }
 }
 
