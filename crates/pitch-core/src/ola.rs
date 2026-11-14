@@ -94,3 +94,34 @@ pub fn add_grain(
 pub fn normalise(acc: f32, wsum: f32) -> f32 {
     acc / wsum.max(NORM_FLOOR)
 }
+
+/// The position within ±spacing/5 of `guess` where one period of the signal `x` best
+/// matches the period around `prev` (normalised cross-correlation). Snapping each new
+/// analysis mark onto the waveform this way keeps neighbouring grains in phase even
+/// while the pitch slides faster than the detector's window can follow.
+pub fn align_mark(x: impl Fn(i64) -> f32, prev: i64, guess: i64, spacing: usize) -> i64 {
+    let half = (spacing / 2).max(1) as i64;
+    let r = (spacing / 5) as i64;
+    if r == 0 {
+        return guess;
+    }
+    let mut best = (f32::MIN, guess);
+    for d in -r..=r {
+        let c = guess + d;
+        if c - prev < 2 {
+            continue;
+        }
+        let mut dot = 0f32;
+        let mut e = 0f32;
+        for i in -half..half {
+            let b = x(c + i);
+            dot += x(prev + i) * b;
+            e += b * b;
+        }
+        let score = dot / (e.sqrt() + 1e-9);
+        if score > best.0 {
+            best = (score, c);
+        }
+    }
+    best.1
+}

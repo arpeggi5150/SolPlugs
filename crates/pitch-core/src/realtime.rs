@@ -16,7 +16,7 @@
 
 use crate::correct::{CorrectParams, Corrected, Corrector};
 use crate::detect::{Detection, Mpm};
-use crate::ola::{Grain, add_grain, normalise};
+use crate::ola::{Grain, add_grain, align_mark, normalise};
 use crate::scale::freq_to_midi;
 
 /// Maximum channels processed (shared marks, per-channel grains).
@@ -447,8 +447,7 @@ impl Realtime {
                 // Snap onto the waveform: the next period starts where the signal best
                 // repeats the last one, so neighbouring grains line up even mid-slide.
                 pos = self.align(m.pos, pos, spacing);
-                if let Some(slot) = self.marks.get_mut(((self.mark_count - 1) as usize) % MARKS)
-                {
+                if let Some(slot) = self.marks.get_mut(((self.mark_count - 1) as usize) % MARKS) {
                     slot.spacing = (pos - m.pos).max(2) as usize;
                 }
             }
@@ -462,34 +461,8 @@ impl Realtime {
         }
     }
 
-    /// The position within ±spacing/5 of `guess` where one period of the analysis signal
-    /// best matches the period at `prev` (normalised cross-correlation).
     fn align(&self, prev: i64, guess: i64, spacing: usize) -> i64 {
-        let half = (spacing / 2).max(1) as i64;
-        let r = (spacing / 5) as i64;
-        if r == 0 {
-            return guess;
-        }
-        let x = |t: i64| self.mono[(t as usize) & MASK];
-        let mut best = (f32::MIN, guess);
-        for d in -r..=r {
-            let c = guess + d;
-            if c - prev < 2 {
-                continue;
-            }
-            let mut dot = 0f32;
-            let mut e = 0f32;
-            for i in -half..half {
-                let b = x(c + i);
-                dot += x(prev + i) * b;
-                e += b * b;
-            }
-            let score = dot / (e.sqrt() + 1e-9);
-            if score > best.0 {
-                best = (score, c);
-            }
-        }
-        best.1
+        align_mark(|t| self.mono[(t as usize) & MASK], prev, guess, spacing)
     }
 
     /// Index of the analysis mark nearest to `t` (searching back from the newest).

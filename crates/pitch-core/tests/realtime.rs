@@ -110,7 +110,10 @@ fn slow_retune_keeps_the_performance() {
         let (mx, my) = (rms(&dx), rms(&dy));
         let clicks = new_clicks(&x, &y, sr);
         println!("{name}: movement {mx:.1} -> {my:.1} cents/frame; new clicks {clicks:.1}");
-        assert!(my > 0.7 * mx && my < 1.3 * mx, "{name}: movement {mx} -> {my}");
+        assert!(
+            my > 0.7 * mx && my < 1.3 * mx,
+            "{name}: movement {mx} -> {my}"
+        );
         assert!(clicks < 4.0, "{name}: click score {clicks}");
     }
 }
@@ -153,7 +156,11 @@ fn shifting_a_fifth_keeps_the_formants() {
             );
             assert!((med - 700.0).abs() < 25.0, "{name}: shift {med}");
         }
-        assert!((warps[0] - 1.0).abs() < 0.1, "{name}: formant on warp {}", warps[0]);
+        assert!(
+            (warps[0] - 1.0).abs() < 0.1,
+            "{name}: formant on warp {}",
+            warps[0]
+        );
         assert!(warps[1] > 1.3, "{name}: formant off warp {}", warps[1]);
     }
 }

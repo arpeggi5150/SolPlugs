@@ -17,6 +17,7 @@
 
 pub mod correct;
 pub mod detect;
+pub mod notes;
 pub mod ola;
 pub mod realtime;
 pub mod scale;

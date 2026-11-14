@@ -16,11 +16,16 @@ pub fn load(name: &str) -> (Vec<f32>, f32) {
     let raw: Vec<f32> = match spec.sample_format {
         hound::SampleFormat::Int => {
             let scale = 1.0 / (1u64 << (spec.bits_per_sample - 1)) as f32;
-            r.samples::<i32>().map(|s| s.unwrap() as f32 * scale).collect()
+            r.samples::<i32>()
+                .map(|s| s.unwrap() as f32 * scale)
+                .collect()
         }
         hound::SampleFormat::Float => r.samples::<f32>().map(|s| s.unwrap()).collect(),
     };
-    let mono = raw.chunks(ch).map(|c| c.iter().sum::<f32>() / ch as f32).collect();
+    let mono = raw
+        .chunks(ch)
+        .map(|c| c.iter().sum::<f32>() / ch as f32)
+        .collect();
     (mono, spec.sample_rate as f32)
 }
 
@@ -74,7 +79,11 @@ pub fn track(x: &[f32], sr: f32, hop: usize) -> Vec<(usize, f32, f32)> {
     let mut t = 0;
     while t + win <= x.len() {
         let d = mpm.detect(&x[t..t + win]);
-        out.push((t + win / 2, d.freq(sr), if d.rms > 0.003 { d.clarity } else { 0.0 }));
+        out.push((
+            t + win / 2,
+            d.freq(sr),
+            if d.rms > 0.003 { d.clarity } else { 0.0 },
+        ));
         t += hop;
     }
     out
@@ -154,7 +163,9 @@ pub fn envelope_warp(from: &[f32], to: &[f32], sr: f32) -> f32 {
         let fr = p - i as f32;
         e[i] + fr * (e[i + 1] - e[i])
     };
-    let range: Vec<usize> = (0..bins).filter(|&k| hz(k) >= 250.0 && hz(k) <= 5000.0).collect();
+    let range: Vec<usize> = (0..bins)
+        .filter(|&k| hz(k) >= 250.0 && hz(k) <= 5000.0)
+        .collect();
     let mut best = (f32::MAX, 1.0);
     let mut a = 0.6f32;
     while a <= 2.0 {

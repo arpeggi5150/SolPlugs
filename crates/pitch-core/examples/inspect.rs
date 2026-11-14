@@ -9,7 +9,10 @@ fn main() {
     let mut r = hound::WavReader::open(&args[0]).unwrap();
     let spec = r.spec();
     let scale = 1.0 / (1u64 << (spec.bits_per_sample - 1)) as f32;
-    let x: Vec<f32> = r.samples::<i32>().map(|s| s.unwrap() as f32 * scale).collect();
+    let x: Vec<f32> = r
+        .samples::<i32>()
+        .map(|s| s.unwrap() as f32 * scale)
+        .collect();
     let sr = spec.sample_rate as f32;
     let from: f32 = args.get(1).and_then(|a| a.parse().ok()).unwrap_or(0.0);
     let to: f32 = args.get(2).and_then(|a| a.parse().ok()).unwrap_or(1e9);
@@ -17,7 +20,10 @@ fn main() {
     if let Some(ms) = args.get(3).and_then(|a| a.parse().ok()) {
         p.correct.retune_ms = ms;
     }
-    let mut rt = Realtime::new(Config { sample_rate: sr, range: Range::Mid });
+    let mut rt = Realtime::new(Config {
+        sample_rate: sr,
+        range: Range::Mid,
+    });
     let mut buf = x.clone();
     for chunk in buf.chunks_mut(256) {
         let mut ch = [chunk];
@@ -26,7 +32,12 @@ fn main() {
             if t >= from && t <= to {
                 println!(
                     "{t:7.4}s in {:6.2} out {:6.2} note {:3} shift {:+.2} clar {:.2} rms {:.4}",
-                    f.corrected.input, f.corrected.output, f.corrected.note, f.corrected.shift, f.clarity, f.rms
+                    f.corrected.input,
+                    f.corrected.output,
+                    f.corrected.note,
+                    f.corrected.shift,
+                    f.clarity,
+                    f.rms
                 );
             }
         });
