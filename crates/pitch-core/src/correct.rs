@@ -48,6 +48,11 @@ const CENTRE_HZ: f32 = 1.5;
 /// [`MOVE_ST`], is the singer moving to another note, and the centre follows it fast.
 const ONE_SIDE_MS: f32 = 90.0;
 const MOVE_ST: f32 = 1.0;
+/// A jump this big in one frame restarts the centre at the new pitch.
+const JUMP_ST: f32 = 3.0;
+/// In hard tune, the note is left as soon as the voice is this far from it, whatever the
+/// centre says.
+const LEAVE_ST: f32 = 1.2;
 /// How fast the centre follows a note move.
 const FOLLOW_HZ: f32 = 15.0;
 /// Humanize: extra time constant at full humanize on a fully sustained note.
@@ -142,13 +147,31 @@ impl Corrector {
             self.side = side;
             self.side_ms = 0.0;
         }
+        if d.abs() > JUMP_ST {
+            // A leap (or the detector changing its mind by an octave): no vibrato is that
+            // wide, so start the centre again at the new pitch instead of sliding there.
+            self.c1 = m;
+            self.c2 = m;
+            self.note = None;
+        }
         let moving = self.side_ms > ONE_SIDE_MS || d.abs() > MOVE_ST;
         let a = if moving { self.follow_a } else { self.centre_a };
         self.c1 += a * (m - self.c1);
         self.c2 += a * (self.c1 - self.c2);
-        let centre = self.c2;
+        let mut centre = self.c2;
+        if let Some(cur) = self.note
+            && p.retune_ms < VIBRATO_KEEP_MS
+            && (m - cur as f32).abs() > LEAVE_ST
+        {
+            // Hard tune, and the voice itself is well clear of the note (a slide the
+            // centre is still catching up with): the centre is behind, so start it again
+            // where the voice is and pick the note from there. (Slower settings glide
+            // with the singer instead, so their slides stay smooth.)
+            self.c1 = m;
+            self.c2 = m;
+            centre = m;
+        }
         let vib = m - centre;
-
         let cand = p.scale.nearest(centre);
         let note = match self.note {
             Some(cur) if cur != cand && p.scale.contains(cur) => {
@@ -257,5 +280,36 @@ mod tests {
         };
         let out = run(&p, std::iter::repeat_n(61.3, 200));
         assert_eq!(out.last().map(|c| c.note), Some(62));
+    }
+
+    #[test]
+    fn a_leap_snaps_instead_of_sliding_through_every_note() {
+        let p = CorrectParams {
+            retune_ms: 0.0,
+            ..CorrectParams::default()
+        };
+        // 83.3 for a while, then the voice (or the detector) is an octave lower.
+        let out = run(&p, (0..400).map(|i| if i < 200 { 83.3 } else { 71.4 }));
+        for c in &out[201..] {
+            assert_eq!(c.note, 71, "{c:?}");
+            assert!(c.shift.abs() < 0.5, "{c:?}");
+        }
+    }
+
+    #[test]
+    fn hard_tune_leaves_the_note_on_a_fast_slide() {
+        let p = CorrectParams {
+            retune_ms: 0.0,
+            ..CorrectParams::default()
+        };
+        // Held on 65, then a quick fall to 63 over 40 ms (2 ms frames).
+        let track = (0..300).map(|i| match i {
+            0..100 => 65.0,
+            100..120 => 65.0 - 2.0 * (i - 100) as f32 / 20.0,
+            _ => 63.0,
+        });
+        for c in run(&p, track) {
+            assert!(c.shift.abs() <= LEAVE_ST + 0.01, "{c:?}");
+        }
     }
 }

@@ -143,7 +143,9 @@ pub fn burst_scores(x: &[f32], sr: f32) -> Vec<f32> {
 /// input may land a few ms later in the output). 1 = nothing new; a click is 5+.
 pub fn new_clicks(x: &[f32], y: &[f32], sr: f32) -> f32 {
     let sx = burst_scores(x, sr);
-    let sy = burst_scores(y, sr);
+    let mut sy = burst_scores(y, sr);
+    // The last 50 ms are the processor's flush, not something anyone hears in a song.
+    sy.truncate(sy.len().saturating_sub(50));
     let mut worst = 0f32;
     for i in 0..sy.len().min(sx.len()) {
         let lo = i.saturating_sub(6);
@@ -159,7 +161,9 @@ pub fn new_clicks(x: &[f32], y: &[f32], sr: f32) -> f32 {
 /// listen and whether it is loud enough to hear.
 pub fn click_events(x: &[f32], y: &[f32], sr: f32, n: usize) -> Vec<(f32, f32, f32)> {
     let sx = burst_scores(x, sr);
-    let sy = burst_scores(y, sr);
+    let mut sy = burst_scores(y, sr);
+    // The last 50 ms are the processor's flush, not something anyone hears in a song.
+    sy.truncate(sy.len().saturating_sub(50));
     let ms = (sr * 0.001) as usize;
     let mut s: Vec<(usize, f32)> = (0..sy.len().min(sx.len()))
         .map(|i| {

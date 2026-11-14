@@ -16,8 +16,12 @@ use rustfft::{Fft, FftPlanner};
 
 /// Fraction of the highest key maximum the chosen peak must reach (the paper's k).
 const K: f32 = 0.9;
-/// With a continuity hint, how strong a peak near the previous period must be.
+/// With a continuity hint, how strong a peak near the previous period must be (relative
+/// to the highest key maximum) to keep the pitch below the standard choice.
 const HINT_K: f32 = 0.75;
+/// How strong a hint peak must be, relative to the standard choice, to keep the pitch
+/// above a longer period that the standard choice found.
+const HINT_LOWER_K: f32 = 0.88;
 
 /// One detection result.
 #[derive(Clone, Copy, Debug, Default, PartialEq)]
@@ -194,7 +198,8 @@ impl Mpm {
             return (0.0, 0.0);
         }
         let threshold = K * overall;
-        let Some(&(mut lag, _)) = keys[..nkeys].iter().find(|(_, v)| *v >= threshold) else {
+        let Some(&(mut lag, std_value)) = keys[..nkeys].iter().find(|(_, v)| *v >= threshold)
+        else {
             return (0.0, 0.0);
         };
         if let Some(h) = hint.filter(|h| *h > 0.0) {
@@ -204,7 +209,18 @@ impl Mpm {
             if dist(lag) > NEAR
                 && let Some(&(near, _)) = keys[..nkeys]
                     .iter()
-                    .filter(|(l, v)| *v >= HINT_K * overall && dist(*l) <= NEAR)
+                    .filter(|(l, v)| {
+                        // Against a longer period (the standard choice says the pitch is
+                        // lower) the hint must be nearly as strong as that choice: a
+                        // weaker peak at a fraction of the true period is a harmonic,
+                        // and following the hint there would lock an octave-high error.
+                        let need = if *l < lag {
+                            HINT_LOWER_K * std_value
+                        } else {
+                            HINT_K * overall
+                        };
+                        *v >= need && dist(*l) <= NEAR
+                    })
                     .min_by(|a, b| dist(a.0).total_cmp(&dist(b.0)))
             {
                 lag = near;
