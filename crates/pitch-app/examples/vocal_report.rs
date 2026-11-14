@@ -357,7 +357,7 @@ fn main() {
         percentile(&v, 0.5)
     };
     let all_rms: Vec<f32> = edits.notes.iter().map(note_rms).collect();
-    let loud = percentile(&all_rms, 0.5) * 0.25;
+    let loud = percentile(&all_rms, 0.75) * 0.35;
     let worst = edits
         .notes
         .iter()

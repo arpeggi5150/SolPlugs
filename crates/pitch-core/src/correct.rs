@@ -50,9 +50,6 @@ const ONE_SIDE_MS: f32 = 90.0;
 const MOVE_ST: f32 = 1.0;
 /// A jump this big in one frame restarts the centre at the new pitch.
 const JUMP_ST: f32 = 3.0;
-/// In hard tune, the note is left as soon as the voice is this far from it, whatever the
-/// centre says.
-const LEAVE_ST: f32 = 1.2;
 /// How fast the centre follows a note move.
 const FOLLOW_HZ: f32 = 15.0;
 /// Humanize: extra time constant at full humanize on a fully sustained note.
@@ -158,25 +155,18 @@ impl Corrector {
         let a = if moving { self.follow_a } else { self.centre_a };
         self.c1 += a * (m - self.c1);
         self.c2 += a * (self.c1 - self.c2);
-        let mut centre = self.c2;
-        if let Some(cur) = self.note
-            && p.retune_ms < VIBRATO_KEEP_MS
-            && (m - cur as f32).abs() > LEAVE_ST
-        {
-            // Hard tune, and the voice itself is well clear of the note (a slide the
-            // centre is still catching up with): the centre is behind, so start it again
-            // where the voice is and pick the note from there. (Slower settings glide
-            // with the singer instead, so their slides stay smooth.)
-            self.c1 = m;
-            self.c2 = m;
-            centre = m;
-        }
+        let centre = self.c2;
         let vib = m - centre;
-        let cand = p.scale.nearest(centre);
+        // The note is chosen from the centre, so vibrato never flips it, except towards
+        // hard tune, where vibrato is flattened anyway and the singer expects the nearest
+        // note at every moment (the centre would hold the old note through a slide).
+        let keep = (p.retune_ms / VIBRATO_KEEP_MS).clamp(0.0, 1.0);
+        let basis = m + keep * (centre - m);
+        let cand = p.scale.nearest(basis);
         let note = match self.note {
             Some(cur) if cur != cand && p.scale.contains(cur) => {
-                let d_cur = (centre - cur as f32).abs();
-                let d_new = (centre - cand as f32).abs();
+                let d_cur = (basis - cur as f32).abs();
+                let d_new = (basis - cand as f32).abs();
                 if d_cur - d_new > 2.0 * HYSTERESIS || d_cur > 1.5 {
                     cand
                 } else {
@@ -202,7 +192,6 @@ impl Corrector {
             let a = 1.0 - (-self.dt_ms / tau).exp();
             self.smoothed += a * (want - self.smoothed);
         }
-        let keep = (p.retune_ms / VIBRATO_KEEP_MS).clamp(0.0, 1.0);
         let vib_gain = p.vibrato.clamp(0.0, 2.0) * keep;
         let amount = p.amount.clamp(0.0, 1.0);
         // output = m + amount·(correction + (vibrato gain - 1)·vibrato)
@@ -232,10 +221,11 @@ mod tests {
             retune_ms: 0.0,
             ..CorrectParams::default()
         };
-        // 60.3 with ±0.4 st vibrato at 6 Hz.
+        // 60.2 with ±0.4 st vibrato at 6 Hz: it never crosses the note boundary by
+        // more than the hysteresis, so it stays on 60, flattened.
         let out = run(
             &p,
-            (0..1000).map(|i| 60.3 + 0.4 * (i as f32 * 0.002 * 6.0 * std::f32::consts::TAU).sin()),
+            (0..1000).map(|i| 60.2 + 0.4 * (i as f32 * 0.002 * 6.0 * std::f32::consts::TAU).sin()),
         );
         for c in &out[100..] {
             assert!((c.output - 60.0).abs() < 1e-3, "{c:?}");
@@ -309,7 +299,7 @@ mod tests {
             _ => 63.0,
         });
         for c in run(&p, track) {
-            assert!(c.shift.abs() <= LEAVE_ST + 0.01, "{c:?}");
+            assert!(c.shift.abs() <= 0.5 + HYSTERESIS + 0.01, "{c:?}");
         }
     }
 }
