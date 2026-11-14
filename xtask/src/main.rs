@@ -1,9 +1,9 @@
 //! Developer tasks.
 //!
-//! - `cargo xtask bundle [--debug]`: builds the plugin and lays out `dist/` with
-//!   `SolPlugs Pitch.vst3` (bundle folder) and `SolPlugs Pitch.clap`.
-//! - `cargo xtask install [--debug]`: bundles, then copies both into the per-user plugin
-//!   folders (`%LOCALAPPDATA%\Programs\Common\VST3` and `...\CLAP` on Windows).
+//! - `cargo xtask bundle [--debug] [pitch|compressor]`: builds the plugins (all, or the one
+//!   named) and lays out `dist/` with `<Name>.vst3` (bundle folder) and `<Name>.clap`.
+//! - `cargo xtask install [--debug] [pitch|compressor]`: bundles, then copies them into the
+//!   per-user plugin folders (`%LOCALAPPDATA%\Programs\Common\VST3` and `...\CLAP` on Windows).
 #![deny(
     clippy::unwrap_used,
     clippy::expect_used,
@@ -16,9 +16,29 @@
 use std::path::{Path, PathBuf};
 use std::process::{Command, ExitCode};
 
-const PACKAGE: &str = "solplugs-pitch";
-const LIB: &str = "solplugs_pitch";
-const NAME: &str = "SolPlugs Pitch";
+/// A plugin the workspace ships: (short name, package, library name, display name).
+#[derive(Clone, Copy)]
+struct Plugin {
+    short: &'static str,
+    package: &'static str,
+    lib: &'static str,
+    name: &'static str,
+}
+
+const PLUGINS: &[Plugin] = &[
+    Plugin {
+        short: "pitch",
+        package: "solplugs-pitch",
+        lib: "solplugs_pitch",
+        name: "SolPlugs Pitch",
+    },
+    Plugin {
+        short: "compressor",
+        package: "solplugs-compressor",
+        lib: "solplugs_compressor",
+        name: "SolPlugs Compressor",
+    },
+];
 
 fn root() -> PathBuf {
     Path::new(env!("CARGO_MANIFEST_DIR"))
@@ -27,13 +47,13 @@ fn root() -> PathBuf {
         .unwrap_or_default()
 }
 
-fn dll_name() -> String {
+fn dll_name(lib: &str) -> String {
     if cfg!(windows) {
-        format!("{LIB}.dll")
+        format!("{lib}.dll")
     } else if cfg!(target_os = "macos") {
-        format!("lib{LIB}.dylib")
+        format!("lib{lib}.dylib")
     } else {
-        format!("lib{LIB}.so")
+        format!("lib{lib}.so")
     }
 }
 
@@ -60,12 +80,12 @@ fn copy(from: &Path, to: &Path) -> Result<(), String> {
 
 /// Builds the plugin with only `feature` enabled and returns the built binary, copied
 /// out of the target dir so the next build can't overwrite it.
-fn build_format(release: bool, feature: &str) -> Result<PathBuf, String> {
+fn build_format(p: Plugin, release: bool, feature: &str) -> Result<PathBuf, String> {
     let mut cmd = Command::new(std::env::var("CARGO").unwrap_or_else(|_| "cargo".into()));
     cmd.current_dir(root()).args([
         "build",
         "-p",
-        PACKAGE,
+        p.package,
         "--no-default-features",
         "--features",
         feature,
@@ -81,14 +101,15 @@ fn build_format(release: bool, feature: &str) -> Result<PathBuf, String> {
         .map(PathBuf::from)
         .unwrap_or_else(|| root().join("target"));
     let profile = target.join(if release { "release" } else { "debug" });
-    let out = profile.join(format!("{feature}-{}", dll_name()));
-    copy(&profile.join(dll_name()), &out)?;
+    let out = profile.join(format!("{feature}-{}", dll_name(p.lib)));
+    copy(&profile.join(dll_name(p.lib)), &out)?;
     Ok(out)
 }
 
-fn bundle(release: bool) -> Result<(PathBuf, PathBuf), String> {
-    let vst3_built = build_format(release, "vst3")?;
-    let clap_built = build_format(release, "clap")?;
+fn bundle(p: Plugin, release: bool) -> Result<(PathBuf, PathBuf), String> {
+    let name = p.name;
+    let vst3_built = build_format(p, release, "vst3")?;
+    let clap_built = build_format(p, release, "clap")?;
     let dist = root().join("dist");
     let ext = if cfg!(windows) {
         "vst3"
@@ -98,11 +119,11 @@ fn bundle(release: bool) -> Result<(PathBuf, PathBuf), String> {
         "so"
     };
     let vst3_bin = if cfg!(target_os = "macos") {
-        NAME.to_string()
+        name.to_string()
     } else {
-        format!("{NAME}.{ext}")
+        format!("{name}.{ext}")
     };
-    let vst3 = dist.join(format!("{NAME}.vst3"));
+    let vst3 = dist.join(format!("{name}.vst3"));
     if vst3.exists() {
         std::fs::remove_dir_all(&vst3).map_err(|e| format!("clean {}: {e}", vst3.display()))?;
     }
@@ -110,7 +131,7 @@ fn bundle(release: bool) -> Result<(PathBuf, PathBuf), String> {
         &vst3_built,
         &vst3.join("Contents").join(vst3_arch_dir()).join(vst3_bin),
     )?;
-    let clap = dist.join(format!("{NAME}.clap"));
+    let clap = dist.join(format!("{name}.clap"));
     copy(&clap_built, &clap)?;
     println!("bundled:\n  {}\n  {}", vst3.display(), clap.display());
     Ok((vst3, clap))
@@ -130,8 +151,9 @@ fn copy_dir(from: &Path, to: &Path) -> Result<(), String> {
     Ok(())
 }
 
-fn install(release: bool) -> Result<(), String> {
-    let (vst3, clap) = bundle(release)?;
+fn install(p: Plugin, release: bool) -> Result<(), String> {
+    let name = p.name;
+    let (vst3, clap) = bundle(p, release)?;
     let base = if cfg!(windows) {
         std::env::var_os("LOCALAPPDATA").map(|p| PathBuf::from(p).join("Programs").join("Common"))
     } else if cfg!(target_os = "macos") {
@@ -145,7 +167,7 @@ fn install(release: bool) -> Result<(), String> {
     } else {
         (base.join(".vst3"), base.join(".clap"))
     };
-    let vst3_dest = vst3_dir.join(format!("{NAME}.vst3"));
+    let vst3_dest = vst3_dir.join(format!("{name}.vst3"));
     if vst3_dest.exists() {
         std::fs::remove_dir_all(&vst3_dest).map_err(|e| {
             format!(
@@ -155,11 +177,11 @@ fn install(release: bool) -> Result<(), String> {
         })?;
     }
     copy_dir(&vst3, &vst3_dest)?;
-    copy(&clap, &clap_dir.join(format!("{NAME}.clap")))?;
+    copy(&clap, &clap_dir.join(format!("{name}.clap")))?;
     println!(
         "installed:\n  {}\n  {}",
         vst3_dest.display(),
-        clap_dir.join(format!("{NAME}.clap")).display()
+        clap_dir.join(format!("{name}.clap")).display()
     );
     Ok(())
 }
@@ -169,14 +191,31 @@ mod probe;
 fn main() -> ExitCode {
     let args: Vec<String> = std::env::args().skip(1).collect();
     let release = !args.iter().any(|a| a == "--debug");
+    let chosen: Vec<Plugin> = match args.iter().skip(1).find(|a| !a.starts_with("--")) {
+        Some(short) => PLUGINS
+            .iter()
+            .copied()
+            .filter(|p| p.short == short)
+            .collect(),
+        None => PLUGINS.to_vec(),
+    };
+    let each = |f: fn(Plugin, bool) -> Result<(), String>| -> Result<(), String> {
+        if chosen.is_empty() {
+            return Err("unknown plugin (use pitch or compressor)".into());
+        }
+        chosen.iter().try_for_each(|p| f(*p, release))
+    };
     let res = match args.first().map(String::as_str) {
-        Some("bundle") => bundle(release).map(|_| ()),
-        Some("install") => install(release),
+        Some("bundle") => each(|p, r| bundle(p, r).map(|_| ())),
+        Some("install") => each(install),
         Some("probe-vst3") => match args.get(1) {
             Some(path) => probe::run(std::path::Path::new(path)),
             None => Err("usage: cargo xtask probe-vst3 <path to .vst3 binary>".into()),
         },
-        _ => Err("usage: cargo xtask <bundle|install|probe-vst3 PATH> [--debug]".into()),
+        _ => Err(
+            "usage: cargo xtask <bundle|install> [pitch|compressor] [--debug] | probe-vst3 PATH"
+                .into(),
+        ),
     };
     match res {
         Ok(()) => ExitCode::SUCCESS,
