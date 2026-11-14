@@ -76,6 +76,7 @@ pub fn show(ui: &mut Ui, engine: &Engine, local: &mut UiLocal) {
     }
 
     egui::Panel::top("rv-top")
+        .resizable(false)
         .frame(theme::bar_frame(&pal))
         .show(ui, |ui| {
             top_bar(ui, engine, &pal);
@@ -89,6 +90,7 @@ pub fn show(ui: &mut Ui, engine: &Engine, local: &mut UiLocal) {
             );
         });
     egui::Panel::bottom("rv-footer")
+        .resizable(false)
         .frame(theme::bar_frame(&pal))
         .show(ui, |ui| footer(ui, engine, &pal));
     egui::CentralPanel::default()
