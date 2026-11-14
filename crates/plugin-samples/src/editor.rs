@@ -54,7 +54,7 @@ pub fn open(
         .with_parent(parent)
         .with_repaint_notifier(repaint.clone())
         .with_repaint_poll_interval(Duration::from_millis(33));
-    EguiWindow::create(
+    let window = EguiWindow::create(
         settings,
         EditorApp {
             engine,
@@ -62,7 +62,11 @@ pub fn open(
             repaint,
         },
     )
-    .map_err(|e| e.to_string())
+    .map_err(|e| e.to_string())?;
+    // baseview creates child windows hidden and only draws on WM_PAINT, so a window that is
+    // never shown never runs a frame. CLAP hosts call `gui.show`, but VST3 has no such call.
+    let _ = window.show();
+    Ok(window)
 }
 
 /// A parent window known only by its raw handle (what VST3 hands us).
