@@ -9,6 +9,8 @@
 pub struct Detection {
     /// Overall tempo, if Song Sense found a beat.
     pub bpm: Option<f64>,
+    /// Tempo confidence, 0..1 (Song Sense calls below 0.65 low).
+    pub bpm_confidence: f64,
     /// Overall key in Song Sense's spelling ("C major", "F# minor"), if it found one.
     pub key: Option<String>,
     /// Key confidence, 0..1.
@@ -18,6 +20,8 @@ pub struct Detection {
 /// Longest stretch handed to the detector, seconds. Samples are short; a long file is
 /// judged by its first minute so an import stays quick.
 pub const MAX_SECONDS: f64 = 60.0;
+/// Song Sense's own line between low and medium confidence.
+pub const LOW_CONFIDENCE: f64 = 0.65;
 /// Shortest audio worth detecting, seconds. One-shots have no tempo or key to find.
 pub const MIN_SECONDS: f64 = 1.5;
 
@@ -53,6 +57,7 @@ mod imp {
     struct ShimResult {
         has_bpm: c_int,
         bpm: f64,
+        bpm_confidence: f64,
         key_confidence: f64,
         key: [c_char; 32],
     }
@@ -79,6 +84,7 @@ mod imp {
         let mut out = ShimResult {
             has_bpm: 0,
             bpm: 0.0,
+            bpm_confidence: 0.0,
             key_confidence: 0.0,
             key: [0; 32],
         };
@@ -100,6 +106,7 @@ mod imp {
         let key = (!key.is_empty() && key != "unknown").then_some(key);
         Some(Detection {
             bpm,
+            bpm_confidence: out.bpm_confidence,
             key,
             key_confidence: out.key_confidence,
         })

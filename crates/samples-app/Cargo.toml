@@ -1,0 +1,32 @@
+[package]
+name = "solplugs-samples-app"
+description = "SolPlugs Samples as an embeddable app: library engine, preview player and the egui card-grid UI. Used by the VST3/CLAP plugin, the standalone window and Solara."
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+rust-version.workspace = true
+
+[dependencies]
+solplugs-samples-core.workspace = true
+solplugs-songsense.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+log.workspace = true
+arc-swap.workspace = true
+egui = { version = "0.37", features = ["default_fonts"] }
+raw-window-handle = "0.6"
+
+[target.'cfg(windows)'.dependencies]
+# Native file and folder pickers.
+rfd = { version = "0.17", default-features = false }
+# Drag a sample out to a track, the Sampler or any DAW (OLE DoDragDrop with CF_HDROP).
+drag = "2.1"
+
+[target.'cfg(target_os = "macos")'.dependencies]
+rfd = { version = "0.17", default-features = false }
+
+[dev-dependencies]
+tempfile = "3"
+
+[lints]
+workspace = true

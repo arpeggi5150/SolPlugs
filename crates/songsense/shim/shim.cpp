@@ -12,6 +12,7 @@ extern "C" {
 struct ss_shim_result {
     int has_bpm;
     double bpm;
+    double bpm_confidence;
     double key_confidence;
     char key[32];
 };
@@ -27,6 +28,15 @@ int ss_shim_analyse(const float* mono, size_t frames, double sample_rate, ss_shi
             out->has_bpm = 1;
             out->bpm = *a.overallBpm;
         }
+        // Tempo confidence: the sections' confidences, weighted by length.
+        double w = 0, c = 0;
+        for (const auto& seg : a.segments) {
+            if (!seg.bpm) continue;
+            double len = seg.endSec - seg.startSec;
+            w += len;
+            c += len * seg.bpmConfidence;
+        }
+        out->bpm_confidence = w > 0 ? c / w : 0;
         out->key_confidence = a.overallKeyConfidence;
         std::strncpy(out->key, a.overallKey.c_str(), sizeof(out->key) - 1);
         return 0;

@@ -57,13 +57,15 @@ pub fn hash(s: &str) -> String {
 
 /// Genres named by a path's folders ("Samples/Trap/808s/x.wav" gives "Trap").
 fn folder_genres(path: &Path, known: &[String]) -> Vec<String> {
+    let norm = |s: &str| {
+        let s: String = s.to_lowercase().chars().map(|c| if c.is_alphanumeric() || c == '&' { c } else { ' ' }).collect();
+        format!(" {} ", s.split_whitespace().collect::<Vec<_>>().join(" "))
+    };
     let mut out = Vec::new();
     for comp in path.parent().into_iter().flat_map(Path::components) {
-        let c = comp.as_os_str().to_string_lossy().to_ascii_lowercase();
-        let c = c.replace(['_', '-'], " ");
+        let c = norm(&comp.as_os_str().to_string_lossy());
         for g in known {
-            let gl = g.to_ascii_lowercase();
-            if (c == gl || c.split(' ').any(|w| w == gl)) && !out.contains(g) {
+            if c.contains(&norm(g)) && !out.contains(g) {
                 out.push(g.clone());
             }
         }
@@ -73,6 +75,14 @@ fn folder_genres(path: &Path, known: &[String]) -> Vec<String> {
 
 /// Fills BPM and key from the file name, then Song Sense, where the tags left them empty.
 pub fn fill_bpm_key(s: &mut Sample, audio: Option<&Audio>) {
+    fill_from_name(s);
+    if let Some(a) = audio {
+        fill_detected(s, a);
+    }
+}
+
+/// BPM and key from the file name, where empty.
+pub fn fill_from_name(s: &mut Sample) {
     let stem = s
         .path
         .file_stem()
@@ -90,17 +100,22 @@ pub fn fill_bpm_key(s: &mut Sample, audio: Option<&Audio>) {
         s.key = Some(k);
         s.key_source = Source::Name;
     }
+}
+
+/// BPM and key from Song Sense, where still empty.
+pub fn fill_detected(s: &mut Sample, a: &Audio) {
     if (s.bpm.is_none() || s.key.is_none())
-        && let Some(a) = audio
         && let Some(d) = solplugs_songsense::detect(&a.mono(), a.sample_rate)
     {
+        // Song Sense calls a reading below 0.65 "low confidence"; leave those blank.
         if s.bpm.is_none()
-            && let Some(b) = d.bpm
+            && let Some(b) = d.bpm.filter(|_| d.bpm_confidence >= solplugs_songsense::LOW_CONFIDENCE)
         {
             s.bpm = Some((b * 10.0).round() / 10.0);
             s.bpm_source = Source::Detected;
         }
         if s.key.is_none()
+            && d.key_confidence >= solplugs_songsense::LOW_CONFIDENCE
             && let Some(k) = d.key.as_deref().and_then(crate::keys::normalize)
         {
             s.key = Some(k);
@@ -225,6 +240,9 @@ mod tests {
             vec!["Hip Hop".to_string()]
         );
         assert!(folder_genres(Path::new("/s/Warehouse/a.wav"), &known).is_empty());
+        let lofi = vec!["Lo-Fi".to_string()];
+        assert_eq!(folder_genres(Path::new("/s/Lo-Fi Dust/a.wav"), &lofi), lofi);
+        assert_eq!(folder_genres(Path::new("/s/lofi/a.wav"), &lofi), Vec::<String>::new());
     }
 }
 
