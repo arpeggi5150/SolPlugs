@@ -6,6 +6,7 @@
 //! - [`realtime`]: the live corrector (detection + correction + shifting at fixed latency).
 //! - [`notes`]: offline analysis of a captured take into notes, and rendering note edits.
 //! - [`scale`]: keys, scales, note names.
+//! - [`metrics`]: objective quality measures (pitch accuracy, formant envelope, clicks).
 #![deny(
     clippy::unwrap_used,
     clippy::expect_used,
@@ -17,6 +18,7 @@
 
 pub mod correct;
 pub mod detect;
+pub mod metrics;
 pub mod notes;
 pub mod ola;
 pub mod realtime;
