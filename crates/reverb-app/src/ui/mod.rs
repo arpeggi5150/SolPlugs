@@ -285,18 +285,10 @@ fn value_box(ui: &mut Ui, engine: &Engine, id: Pid, pal: &Palette, shown: Option
     plate::drag_logic(ui, engine, id, &resp, info.normalize(v), shown.is_some());
 }
 
-/// A labelled group of value boxes.
-fn group(ui: &mut Ui, title: &str, pal: &Palette, f: impl FnOnce(&mut Ui)) {
-    egui::Frame::new()
-        .fill(pal.panel)
-        .corner_radius(CornerRadius::same(8))
-        .inner_margin(egui::Margin::symmetric(6, 3))
-        .show(ui, |ui| {
-            ui.horizontal(|ui| {
-                ui.label(RichText::new(title).color(pal.before).size(11.5).strong());
-                f(ui);
-            });
-        });
+/// A group title in the footer. The row wraps between any two items.
+fn title(ui: &mut Ui, text: &str, pal: &Palette) {
+    ui.add_space(6.0);
+    ui.label(RichText::new(text).color(pal.before).size(11.5).strong());
 }
 
 fn footer(ui: &mut Ui, engine: &Engine, pal: &Palette) {
@@ -307,7 +299,8 @@ fn footer(ui: &mut Ui, engine: &Engine, pal: &Palette) {
     };
     let auto = engine.params().c(v, Ctl::AutoMakeup) >= 0.5;
     ui.horizontal_wrapped(|ui| {
-        group(ui, "WET EQ", pal, |ui| {
+        title(ui, "WET EQ", pal);
+        {
             dim(ui, "Lo Cut");
             value_box(ui, engine, c(Ctl::LowCut), pal, None);
             dim(ui, "Low");
@@ -319,8 +312,9 @@ fn footer(ui: &mut Ui, engine: &Engine, pal: &Palette) {
             value_box(ui, engine, c(Ctl::High), pal, None);
             dim(ui, "Hi Cut");
             value_box(ui, engine, c(Ctl::HighCut), pal, None);
-        });
-        group(ui, "WET COMP", pal, |ui| {
+        }
+        title(ui, "WET COMP", pal);
+        {
             value_box(ui, engine, c(Ctl::Threshold), pal, None);
             value_box(ui, engine, c(Ctl::Ratio), pal, None);
             dim(ui, "Att");
@@ -333,23 +327,25 @@ fn footer(ui: &mut Ui, engine: &Engine, pal: &Palette) {
                     .monospace()
                     .color(if gr > 0.3 { pal.gr } else { pal.dim }),
             );
-        });
-        group(ui, "SAT", pal, |ui| {
-            value_box(ui, engine, c(Ctl::Saturation), pal, None)
-        });
-        group(ui, "STEREO", pal, |ui| {
+        }
+        title(ui, "SATURATION", pal);
+        value_box(ui, engine, c(Ctl::Saturation), pal, None);
+        title(ui, "STEREO", pal);
+        {
             dim(ui, "Width");
             value_box(ui, engine, c(Ctl::Width), pal, None);
             dim(ui, "Wet/Dry");
             value_box(ui, engine, c(Ctl::StereoMix), pal, None);
-        });
-        group(ui, "PING-PONG", pal, |ui| {
+        }
+        title(ui, "PING-PONG", pal);
+        {
             dim(ui, "Wet/Dry");
             value_box(ui, engine, c(Ctl::PingPongMix), pal, None);
             dim(ui, "Time");
             value_box(ui, engine, c(Ctl::PingPongTime), pal, None);
-        });
-        group(ui, "OUTPUT", pal, |ui| {
+        }
+        title(ui, "OUTPUT", pal);
+        {
             dim(ui, "In");
             value_box(ui, engine, c(Ctl::GainIn), pal, None);
             dim(ui, if auto { "Out (auto)" } else { "Out" });
@@ -366,7 +362,7 @@ fn footer(ui: &mut Ui, engine: &Engine, pal: &Palette) {
             value_box(ui, engine, c(Ctl::Wet), pal, None);
             dim(ui, "Dry");
             value_box(ui, engine, c(Ctl::Dry), pal, None);
-        });
+        }
         switch(ui, engine, Pid::g(G::Link), pal);
     });
 }

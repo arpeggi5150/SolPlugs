@@ -204,8 +204,8 @@ fn decay_window(
             Stroke::new(1.0, pal.dim.gamma_multiply(0.5)),
         );
         p.text(
-            pos2(x + 4.0, plot.top() + 2.0),
-            Align2::LEFT_TOP,
+            pos2(x + 4.0, plot.bottom() - 2.0),
+            Align2::LEFT_BOTTOM,
             format!("pre-delay {:.0} ms", s.predelay_ms),
             font.clone(),
             pal.dim,

@@ -1,0 +1,27 @@
+[package]
+name = "solplugs-reverb-standalone"
+description = "SolPlugs Verb in its own window: live input or a dropped WAV file through the reverb."
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+rust-version.workspace = true
+
+[[bin]]
+name = "solplugs-verb"
+path = "src/main.rs"
+
+[dependencies]
+solplugs-reverb-app.workspace = true
+solplugs-reverb-core.workspace = true
+rtrb.workspace = true
+log.workspace = true
+hound = "3"
+egui = { version = "0.37", features = ["default_fonts"] }
+eframe = { version = "0.37", default-features = false, features = ["default_fonts", "glow", "x11"] }
+
+# Audio I/O on Windows (WASAPI, shared mode, so a DAW keeps its device).
+[target.'cfg(windows)'.dependencies]
+cpal = "0.18"
+
+[lints]
+workspace = true
