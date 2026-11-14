@@ -2306,6 +2306,7 @@ dependencies = [
  "log",
  "raw-window-handle",
  "solplugs-comp-app",
+ "solplugs-comp-core",
  "vst3",
 ]
 
