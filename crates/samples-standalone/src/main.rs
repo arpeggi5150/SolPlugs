@@ -78,7 +78,7 @@ mod audio {
             let mut r = vec![0.0f32; 8192];
             let stream = device
                 .build_output_stream(
-                    &config.into(),
+                    config.into(),
                     move |data: &mut [f32], _| {
                         let frames = data.len() / channels;
                         if l.len() < frames {

@@ -113,15 +113,25 @@ pub fn fill_from_name(s: &mut Sample) {
 }
 
 /// BPM and key from Song Sense, where still empty.
+/// A tempo needs at least this many beats in the file before it is believable.
+pub const MIN_BEATS: f64 = 4.0;
+
+/// Whether a detected tempo is believable for a file this long. Short one-shots and noise
+/// otherwise come back at odd tempos like 32 BPM.
+pub fn tempo_plausible(bpm: f64, seconds: f64) -> bool {
+    (40.0..=300.0).contains(&bpm) && seconds * bpm / 60.0 >= MIN_BEATS
+}
+
 pub fn fill_detected(s: &mut Sample, a: &Audio) {
     if (s.bpm.is_none() || s.key.is_none())
         && let Some(d) = solplugs_songsense::detect(&a.mono(), a.sample_rate)
     {
         // Song Sense calls a reading below 0.65 "low confidence"; leave those blank.
         if s.bpm.is_none()
-            && let Some(b) = d
-                .bpm
-                .filter(|_| d.bpm_confidence >= solplugs_songsense::LOW_CONFIDENCE)
+            && let Some(b) = d.bpm.filter(|&b| {
+                d.bpm_confidence >= solplugs_songsense::LOW_CONFIDENCE
+                    && tempo_plausible(b, a.seconds())
+            })
         {
             s.bpm = Some((b * 10.0).round() / 10.0);
             s.bpm_source = Source::Detected;
@@ -236,6 +246,15 @@ pub fn probe(path: &Path, known_genres: &[String], art_dir: &Path) -> Result<Sam
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn tempo_needs_enough_beats() {
+        assert!(!super::tempo_plausible(32.0, 2.0));
+        assert!(!super::tempo_plausible(140.0, 1.5));
+        assert!(super::tempo_plausible(140.0, 2.0));
+        assert!(super::tempo_plausible(85.0, 5.0));
+        assert!(!super::tempo_plausible(400.0, 10.0));
+    }
+
     use super::*;
 
     #[test]
