@@ -12,6 +12,8 @@ repository = "https://github.com/arpeggi5150/SolPlugs"
 [workspace.dependencies]
 solplugs-pitch-core = { path = "crates/pitch-core" }
 solplugs-pitch-app = { path = "crates/pitch-app" }
+solplugs-comp-core = { path = "crates/comp-core" }
+solplugs-comp-app = { path = "crates/comp-app" }
 
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
