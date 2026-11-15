@@ -1,8 +1,8 @@
 //! Developer tasks.
 //!
-//! - `cargo xtask bundle [--debug] [pitch|compressor|eq]`: builds the plugins (all, or the one
+//! - `cargo xtask bundle [--debug] [pitch|compressor|eq|reverb]`: builds the plugins (all, or the one
 //!   named) and lays out `dist/` with `<Name>.vst3` (bundle folder) and `<Name>.clap`.
-//! - `cargo xtask install [--debug] [pitch|compressor|eq]`: bundles, then copies them into the
+//! - `cargo xtask install [--debug] [pitch|compressor|eq|reverb]`: bundles, then copies them into the
 //!   per-user plugin folders (`%LOCALAPPDATA%\Programs\Common\VST3` and `...\CLAP` on Windows).
 #![deny(
     clippy::unwrap_used,
@@ -43,6 +43,12 @@ const PLUGINS: &[Plugin] = &[
         package: "solplugs-eq",
         lib: "solplugs_eq",
         name: "SolPlugs EQ",
+    },
+    Plugin {
+        short: "reverb",
+        package: "solplugs-reverb",
+        lib: "solplugs_reverb",
+        name: "SolPlugs Verb",
     },
 ];
 
@@ -219,7 +225,7 @@ fn main() -> ExitCode {
             None => Err("usage: cargo xtask probe-vst3 <path to .vst3 binary>".into()),
         },
         _ => Err(
-            "usage: cargo xtask <bundle|install> [pitch|compressor|eq] [--debug] | probe-vst3 PATH"
+            "usage: cargo xtask <bundle|install> [pitch|compressor|eq|reverb] [--debug] | probe-vst3 PATH"
                 .into(),
         ),
     };

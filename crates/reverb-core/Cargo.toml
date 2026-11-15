@@ -1,0 +1,19 @@
+[package]
+name = "solplugs-reverb-core"
+description = "SolPlugs Reverb DSP: five reverb versions (Clean, Hall, Room, Plate, Spring), a feedback delay network, early reflections, a spring model, and a wet-only chain with saturation, EQ, compressor, stereo width and ping-pong. Clean-room."
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+rust-version.workspace = true
+
+[dependencies]
+# Shared with the compressor and the EQ: oversampler, smoothing, delay lines, AvgPeak,
+# the compressor chain (wet compressor) and the EQ bands (wet EQ).
+solplugs-comp-core.workspace = true
+solplugs-eq-core.workspace = true
+
+[lints]
+workspace = true
+
+[dev-dependencies]
+hound = "3"
