@@ -1,0 +1,176 @@
+# Publishes SolPlugs for Windows to the public download repo arpeggi5150/SolPlugs-Releases.
+#
+# Push a version tag (git tag v0.1.0 && git push origin v0.1.0) or run it by hand from
+# Actions -> Publish -> Run workflow. It runs `cargo xtask bundle` on a GitHub-hosted Windows
+# runner and creates a published GitHub Release in SolPlugs-Releases with one zip per plugin
+# format (VST3, CLAP) and SHA256SUMS.txt. No hand steps after the trigger.
+#
+# Upload token: the repository secret SOLPLUGS_RELEASES_TOKEN (a fine-grained token with
+# Contents read + write on arpeggi5150/SolPlugs-Releases only). The workflow never falls back to
+# GITHUB_TOKEN, so it can only ever publish to SolPlugs-Releases, never to this repo.
+name: Publish
+
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Release tag, e.g. v0.1.0 (empty: v + the version in Cargo.toml). Must match Cargo.toml."
+        type: string
+        default: ""
+
+permissions:
+  contents: read
+
+concurrency:
+  group: publish-solplugs
+  cancel-in-progress: false
+
+env:
+  # The one place the destination is named. Guarded below: nothing else is ever published to.
+  RELEASES_REPO: arpeggi5150/SolPlugs-Releases
+
+jobs:
+  # Fails in seconds, before the build, when the token, the tag or the target is wrong.
+  preflight:
+    name: Check token, tag and target
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      tag: ${{ steps.tag.outputs.tag }}
+      version: ${{ steps.tag.outputs.version }}
+    steps:
+      - name: Check that the upload token secret is set
+        env:
+          TOKEN: ${{ secrets.SOLPLUGS_RELEASES_TOKEN }}
+        run: |
+          if [ -z "$TOKEN" ]; then
+            echo "::error title=Missing secret::The repository secret SOLPLUGS_RELEASES_TOKEN is missing, so nothing can be published to $RELEASES_REPO. Add it under Settings -> Secrets and variables -> Actions (a token with Contents read + write on $RELEASES_REPO only), then run this workflow again."
+            exit 1
+          fi
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Work out the tag and check it matches Cargo.toml
+        id: tag
+        env:
+          INPUT_TAG: ${{ inputs.tag }}
+          EVENT: ${{ github.event_name }}
+          REF_NAME: ${{ github.ref_name }}
+        run: |
+          version=$(awk '/^\[workspace.package\]/{p=1;next} /^\[/{p=0} p && /^version *=/{gsub(/.*= *"|".*/,"");print;exit}' Cargo.toml)
+          if [ -z "$version" ]; then
+            echo "::error::Could not read [workspace.package] version from Cargo.toml."
+            exit 1
+          fi
+          if [ "$EVENT" = "push" ]; then tag="$REF_NAME"; else tag="${INPUT_TAG:-v$version}"; fi
+          if [ "$tag" != "v$version" ]; then
+            echo "::error title=Tag does not match the version::Tag $tag does not match Cargo.toml version $version (expected v$version). Nothing was published."
+            exit 1
+          fi
+          echo "tag=$tag" >> "$GITHUB_OUTPUT"
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+          echo "Publishing SolPlugs $version as $tag to $RELEASES_REPO"
+      - name: Check the token reaches the target and the release is new
+        env:
+          GH_TOKEN: ${{ secrets.SOLPLUGS_RELEASES_TOKEN }}
+          TAG: ${{ steps.tag.outputs.tag }}
+        run: |
+          if [ "$RELEASES_REPO" != "arpeggi5150/SolPlugs-Releases" ]; then
+            echo "::error::RELEASES_REPO is $RELEASES_REPO; this workflow only publishes to arpeggi5150/SolPlugs-Releases."
+            exit 1
+          fi
+          if ! gh api "repos/$RELEASES_REPO" --jq .full_name > /dev/null; then
+            echo "::error title=Token cannot reach the target::SOLPLUGS_RELEASES_TOKEN is set but cannot read $RELEASES_REPO (expired, revoked, or not scoped to that repo). Nothing was published."
+            exit 1
+          fi
+          if gh release view "$TAG" --repo "$RELEASES_REPO" > /dev/null 2>&1; then
+            echo "::error title=Release already exists::$RELEASES_REPO already has a release $TAG. Published releases are never replaced: bump [workspace.package] version instead."
+            exit 1
+          fi
+
+  build-and-publish:
+    name: Build Windows x64 plugins and publish
+    needs: preflight
+    runs-on: windows-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Install Rust (stable)
+        shell: pwsh
+        run: |
+          rustup toolchain install stable --profile minimal
+          if ($LASTEXITCODE -ne 0) { throw 'rustup failed' }
+          rustup default stable
+          rustc --version
+      - name: Build the VST3 and CLAP bundles
+        shell: pwsh
+        run: |
+          cargo xtask bundle
+          if ($LASTEXITCODE -ne 0) { throw 'cargo xtask bundle failed' }
+      - name: Zip each format and write SHA256SUMS.txt
+        id: files
+        shell: pwsh
+        env:
+          VERSION: ${{ needs.preflight.outputs.version }}
+        run: |
+          $dist = Join-Path $env:GITHUB_WORKSPACE 'dist'
+          $out = Join-Path $env:RUNNER_TEMP 'release'
+          New-Item -ItemType Directory -Force -Path $out | Out-Null
+          $vst3 = Join-Path $dist 'SolPlugs Pitch.vst3'
+          $clap = Join-Path $dist 'SolPlugs Pitch.clap'
+          $vst3Bin = Join-Path $vst3 'Contents\x86_64-win\SolPlugs Pitch.vst3'
+          foreach ($f in @($vst3Bin, $clap)) {
+            if (-not (Test-Path $f)) { throw "cargo xtask bundle did not produce $f" }
+            if ((Get-Item $f).Length -lt 100KB) { throw "$f is under 100 KB; refusing to publish it" }
+          }
+          $vst3Zip = Join-Path $out "solplugs-$env:VERSION-windows-x64-vst3.zip"
+          $clapZip = Join-Path $out "solplugs-$env:VERSION-windows-x64-clap.zip"
+          Compress-Archive -Path $vst3 -DestinationPath $vst3Zip
+          Compress-Archive -Path $clap -DestinationPath $clapZip
+          $sums = Join-Path $out 'SHA256SUMS.txt'
+          $lines = foreach ($f in @($vst3Zip, $clapZip)) {
+            '{0}  {1}' -f (Get-FileHash -Algorithm SHA256 $f).Hash.ToLower(), (Split-Path -Leaf $f)
+          }
+          [IO.File]::WriteAllText($sums, (($lines -join "`n") + "`n"))
+          Get-Content $sums
+          "vst3=$vst3Zip" >> $env:GITHUB_OUTPUT
+          "clap=$clapZip" >> $env:GITHUB_OUTPUT
+          "sums=$sums" >> $env:GITHUB_OUTPUT
+      - name: Publish to SolPlugs-Releases
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ secrets.SOLPLUGS_RELEASES_TOKEN }}
+          TAG: ${{ needs.preflight.outputs.tag }}
+          VERSION: ${{ needs.preflight.outputs.version }}
+          VST3: ${{ steps.files.outputs.vst3 }}
+          CLAP: ${{ steps.files.outputs.clap }}
+          SUMS: ${{ steps.files.outputs.sums }}
+          SOURCE: ${{ github.repository }}
+          SHA: ${{ github.sha }}
+        run: |
+          if (-not $env:GH_TOKEN) { throw 'The repository secret SOLPLUGS_RELEASES_TOKEN is missing; nothing was published.' }
+          if ($env:RELEASES_REPO -ne 'arpeggi5150/SolPlugs-Releases') { throw "Refusing to publish to $env:RELEASES_REPO" }
+          $notes = @"
+          SolPlugs $env:VERSION for Windows 10 and 11 (x64).
+
+          Plugins in this release: SolPlugs Pitch (pitch correction).
+
+          - ``solplugs-$env:VERSION-windows-x64-vst3.zip``: unzip ``SolPlugs Pitch.vst3`` into ``C:\Program Files\Common Files\VST3`` (or ``%LOCALAPPDATA%\Programs\Common\VST3``).
+          - ``solplugs-$env:VERSION-windows-x64-clap.zip``: unzip ``SolPlugs Pitch.clap`` into ``C:\Program Files\Common Files\CLAP`` (or ``%LOCALAPPDATA%\Programs\Common\CLAP``).
+          - ``SHA256SUMS.txt``: checksums for both.
+
+          The files are not code-signed yet.
+
+          Built from $env:SOURCE@$env:SHA.
+          "@
+          $notesFile = Join-Path $env:RUNNER_TEMP 'notes.md'
+          [IO.File]::WriteAllText($notesFile, $notes)
+          gh release create $env:TAG $env:VST3 $env:CLAP $env:SUMS --repo $env:RELEASES_REPO --title "SolPlugs $env:VERSION" --notes-file $notesFile --latest
+          if ($LASTEXITCODE -ne 0) { throw "gh release create failed; check that SOLPLUGS_RELEASES_TOKEN has Contents read + write on $env:RELEASES_REPO" }
+          $url = gh release view $env:TAG --repo $env:RELEASES_REPO --json url --jq .url
+          "Published: $url" >> $env:GITHUB_STEP_SUMMARY
+          Write-Output "Published: $url"
