@@ -1,0 +1,52 @@
+{
+  "format": "solplugs-index",
+  "format_version": 1,
+  "name": "SolPlugs",
+  "packages": [
+    {
+      "id": "song-sense",
+      "name": "Song Sense",
+      "version": "1.0.1",
+      "summary": "Song analysis: BPM, time signature and key for every section, with confidences",
+      "vendor": "Zee Creations",
+      "homepage": "https://github.com/arpeggi5150/Song-Sense-Releases",
+      "downloads": [
+        {
+          "platform": "windows-x64",
+          "format": "vst3",
+          "url": "https://github.com/arpeggi5150/Song-Sense-Releases/releases/download/song-sense-v1.0.1/Song-Sense-1.0.1-VST3.zip",
+          "size": 2379793,
+          "sha256": "4bf377740b6562d1d84f538b4f0f9dde0d782a6f9c49d477a52f6e63cf1ce63d",
+          "bundle": "Song Sense.vst3",
+          "files": [
+            {
+              "path": "Song Sense.vst3/Contents/Resources/moduleinfo.json",
+              "size": 1100,
+              "sha256": "3236109846e8fe26feda5593cb8b361e48244e86a0f46afbf9508157522d29c2"
+            },
+            {
+              "path": "Song Sense.vst3/Contents/x86_64-win/Song Sense.vst3",
+              "size": 5364736,
+              "sha256": "1014e186974ea992fadbaa13543e4c522d7323d305e38f853916def047cad031"
+            }
+          ]
+        },
+        {
+          "platform": "windows-x64",
+          "format": "clap",
+          "url": "https://github.com/arpeggi5150/Song-Sense-Releases/releases/download/song-sense-v1.0.1/Song-Sense-1.0.1-CLAP.zip",
+          "size": 2356453,
+          "sha256": "731adc3131e835ecadf515cddc7a44fcaab546bc6dbd3b2b9c1e21551a873982",
+          "bundle": "Song Sense.clap",
+          "files": [
+            {
+              "path": "Song Sense.clap",
+              "size": 5332992,
+              "sha256": "86fb2d0218f9806a821892835f1682a99094443ba87723131115eece8b5cbccf"
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}
