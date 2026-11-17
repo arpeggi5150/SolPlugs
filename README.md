@@ -12,6 +12,12 @@ Monophonic pitch correction: an automatic mode for live audio and a graph mode f
 
 Build and install: `cargo xtask bundle` then `cargo xtask install`. Check a vocal take with `cargo run --release -p solplugs-pitch-app --example vocal_report -- take.wav out_dir`.
 
+## Package index
+
+`index.json` is the SolPlugs package repository that Solara's package browser (Window > SolPlugs Packages…) and the Solara installer read. It lists every package with its version, a short line, and per platform and format (VST3, CLAP) one zip: its URL, size and SHA-256, and the size and SHA-256 of every file inside it. Solara checks all of them before it installs anything, and an update downloads only the plugin that changed.
+
+The zips stay where each package publishes them: SolPlugs in SolPlugs-Releases, Song Sense in its own Song-Sense-Releases. Add or update an entry with Solara's `cargo xtask package-entry` (see `docs/solplugs-packages.md` in arpeggi5150/Solara), which hashes the release zips and checks the whole index.
+
 ## Releases
 
 Downloads are published to [arpeggi5150/SolPlugs-Releases](https://github.com/arpeggi5150/SolPlugs-Releases). Pushing a version tag that matches `[workspace.package] version` (for example `v0.1.0`), or running *Actions → Publish* by hand, runs `.github/workflows/publish.yml`: it bundles the plugins on a GitHub-hosted Windows runner and publishes one zip per format (VST3, CLAP) plus `SHA256SUMS.txt`. It reads the upload token from the repository secret `SOLPLUGS_RELEASES_TOKEN` (Contents read + write on SolPlugs-Releases only) and stops with a plain error, before building, if that secret is missing, the tag doesn't match the version, or the release already exists.
